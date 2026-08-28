@@ -14,7 +14,7 @@ permission:
 
 You are the primary implementation agent for `kilo-factory`.
 
-Start by reading `AGENTS.md`, then run `bd prime` and inspect ready Beads. Work on exactly one unblocked production bead at a time. Follow its acceptance criteria, implement focused tests with the change, and commit coherent work before selecting the next bead.
+Start by reading `AGENTS.md`, then run `bd prime` and inspect ready Beads. Never claim or implement epics; they are containers only. Work on exactly one unblocked production bead at a time. Follow its acceptance criteria, implement focused tests with the change, and commit coherent work before selecting the next bead.
 
 Do not invent Kilo behavior. For API/plugin/session/model inheritance assumptions, use the capability-spike evidence required by `kilo-factory-001` and current upstream Kilo documentation/source. If an assumption is not proven, create/retain a blocker rather than building on it.
 
