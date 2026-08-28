@@ -5,7 +5,7 @@ This repository builds `kilo-factory`, a universal unattended-work controller fo
 ## First actions in every coding session
 
 1. Run `bd prime` if Beads is initialized.
-2. Run `bd ready --json` and select exactly one unblocked production bead.
+2. Run `bd ready --json` and select exactly one unblocked production bead. Never claim or implement an epic; epics are containers only.
 3. Inspect that bead with `bd show <id> --json` before editing.
 4. Read only the smallest relevant stable docs from `docs/`.
 5. Keep implementation decisions inside the contracts below; create a new bead for out-of-scope findings.
