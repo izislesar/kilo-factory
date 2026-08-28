@@ -86,8 +86,16 @@ def main() -> None:
         raise SystemExit("ERROR: bd (Beads) is not installed")
     if not PLAN.exists():
         raise SystemExit(f"ERROR: missing {PLAN}")
-    if not (ROOT / ".beads").exists():
-        run(["bd", "init", "--skip-agents"])
+    probe = run(["bd", "ready", "--json"], check=False)
+    if probe.returncode != 0:
+        print("Initializing Beads (non-interactive)...", flush=True)
+        p = subprocess.run(
+            ["bd", "init", "--non-interactive", "--skip-hooks", "--skip-agents"],
+            cwd=ROOT,
+            text=True,
+        )
+        if p.returncode != 0:
+            raise SystemExit(p.returncode)
 
     plan = json.loads(PLAN.read_text(encoding="utf-8"))
     epic = plan["epic"]
