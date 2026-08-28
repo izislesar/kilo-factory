@@ -1,6 +1,6 @@
 # Kilo runtime integration
 
-Researched baseline: Kilo upstream `Kilo-Org/kilocode` main at commit `5e02825c8c5318912e39fe0ceee46793589fae3f` on 2026-08-29. Re-verify against the installed Kilo version during `kf-001`; upstream APIs can change.
+Researched baseline: Kilo upstream `Kilo-Org/kilocode` main at commit `5e02825c8c5318912e39fe0ceee46793589fae3f` on 2026-08-29. Re-verify against the installed Kilo version during `kilo-factory-001`; upstream APIs can change.
 
 ## Verified upstream capabilities
 
@@ -36,7 +36,7 @@ From CLI reference:
 
 ## Capability spike: mandatory proofs
 
-Before implementing the coordinator around assumptions, `kf-001` must add executable probes/tests proving the installed-version behavior of:
+Before implementing the coordinator around assumptions, `kilo-factory-001` must add executable probes/tests proving the installed-version behavior of:
 
 1. Creating/listing/reading/aborting sessions via SDK or REST.
 2. Receiving `session.idle`, error, deletion, and compaction events through SSE/plugin hooks.
