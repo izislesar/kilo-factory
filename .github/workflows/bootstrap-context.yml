@@ -1,0 +1,18 @@
+name: bootstrap-context
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate production plan
+        run: python3 scripts/validate-plan.py
+      - name: Check Python syntax
+        run: python3 -m py_compile scripts/bootstrap-beads.py scripts/validate-plan.py
+      - name: Check shell syntax
+        run: bash -n scripts/bootstrap-beads.sh
