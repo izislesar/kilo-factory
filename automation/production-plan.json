@@ -2,7 +2,7 @@
   "version": 1,
   "project": "kilo-factory",
   "epic": {
-    "id": "kf-000",
+    "id": "kilo-factory-000",
     "title": "[EPIC] Build universal Kilo Factory v1",
     "type": "epic",
     "priority": 0,
@@ -14,7 +14,7 @@
   },
   "tasks": [
     {
-      "id": "kf-001",
+      "id": "kilo-factory-001",
       "title": "[SPIKE] Verify Kilo runtime and inheritance contracts",
       "type": "task",
       "priority": 0,
@@ -33,7 +33,7 @@
       ]
     },
     {
-      "id": "kf-002",
+      "id": "kilo-factory-002",
       "title": "[CORE] Scaffold Bun/TypeScript package, CLI and plugin entrypoints",
       "type": "task",
       "priority": 0,
@@ -42,7 +42,7 @@
         "package"
       ],
       "deps": [
-        "kf-001"
+        "kilo-factory-001"
       ],
       "description": "Create one small npm/Bun package containing the factory CLI/coordinator and Kilo server plugin entrypoint. Establish typecheck, unit test and build scripts.",
       "acceptance": [
@@ -53,7 +53,7 @@
       ]
     },
     {
-      "id": "kf-003",
+      "id": "kilo-factory-003",
       "title": "[CORE] Define project config and embedded durable state schema",
       "type": "task",
       "priority": 0,
@@ -62,7 +62,7 @@
         "state"
       ],
       "deps": [
-        "kf-002"
+        "kilo-factory-002"
       ],
       "description": "Define project-agnostic config for roles, Beads backend, validation commands, main branch and runtime paths. Implement embedded SQLite orchestration state with explicit schema/versioning.",
       "acceptance": [
@@ -73,7 +73,7 @@
       ]
     },
     {
-      "id": "kf-004",
+      "id": "kilo-factory-004",
       "title": "[PLUGIN] Implement exact-job contract and structured completion tools",
       "type": "task",
       "priority": 0,
@@ -82,8 +82,8 @@
         "context"
       ],
       "deps": [
-        "kf-002",
-        "kf-003"
+        "kilo-factory-002",
+        "kilo-factory-003"
       ],
       "description": "Implement the Kilo plugin surface for factory-controlled job sessions. Expose read-only exact job identity plus structured complete/block tools. Plugin must not become a second scheduler.",
       "acceptance": [
@@ -95,7 +95,7 @@
       ]
     },
     {
-      "id": "kf-005",
+      "id": "kilo-factory-005",
       "title": "[KILO] Implement typed Kilo server/session adapter",
       "type": "task",
       "priority": 0,
@@ -104,8 +104,8 @@
         "runtime"
       ],
       "deps": [
-        "kf-001",
-        "kf-002"
+        "kilo-factory-001",
+        "kilo-factory-002"
       ],
       "description": "Wrap verified Kilo SDK/REST/SSE operations behind a small adapter: health, sessions, promptAsync, events, abort, fork/fresh job session, and shutdown/ownership observations.",
       "acceptance": [
@@ -116,7 +116,7 @@
       ]
     },
     {
-      "id": "kf-006",
+      "id": "kilo-factory-006",
       "title": "[BEADS] Implement narrow Beads task backend adapter",
       "type": "task",
       "priority": 0,
@@ -125,7 +125,7 @@
         "backend"
       ],
       "deps": [
-        "kf-002"
+        "kilo-factory-002"
       ],
       "description": "Implement Beads v1 backend using JSON CLI output for ready/show/claim/update/close/comment/dependencies. Keep Beads concerns behind an interface.",
       "acceptance": [
@@ -136,7 +136,7 @@
       ]
     },
     {
-      "id": "kf-007",
+      "id": "kilo-factory-007",
       "title": "[GIT] Implement generation-scoped job worktree manager",
       "type": "task",
       "priority": 0,
@@ -145,8 +145,8 @@
         "worktree"
       ],
       "deps": [
-        "kf-002",
-        "kf-003"
+        "kilo-factory-002",
+        "kilo-factory-003"
       ],
       "description": "Create, inspect, preserve and clean up job-isolated Git worktrees keyed by job/generation. Do not use permanent role branches as task isolation.",
       "acceptance": [
@@ -157,7 +157,7 @@
       ]
     },
     {
-      "id": "kf-008",
+      "id": "kilo-factory-008",
       "title": "[SCHED] Implement deterministic coordinator FSM and leases",
       "type": "task",
       "priority": 0,
@@ -166,10 +166,10 @@
         "fsm"
       ],
       "deps": [
-        "kf-003",
-        "kf-005",
-        "kf-006",
-        "kf-007"
+        "kilo-factory-003",
+        "kilo-factory-005",
+        "kilo-factory-006",
+        "kilo-factory-007"
       ],
       "description": "Implement reconciliation-based job lifecycle with explicit states, leases, generation fencing, bounded attempts and failure classification.",
       "acceptance": [
@@ -181,7 +181,7 @@
       ]
     },
     {
-      "id": "kf-009",
+      "id": "kilo-factory-009",
       "title": "[CONTEXT] Implement minimal exact-job context builder",
       "type": "task",
       "priority": 0,
@@ -190,9 +190,9 @@
         "prompt"
       ],
       "deps": [
-        "kf-004",
-        "kf-006",
-        "kf-008"
+        "kilo-factory-004",
+        "kilo-factory-006",
+        "kilo-factory-008"
       ],
       "description": "Build task context from stable factory contract, project instructions, role contract, one exact job envelope, exact Beads acceptance/dependencies/comments, and relevant repo context only.",
       "acceptance": [
@@ -203,7 +203,7 @@
       ]
     },
     {
-      "id": "kf-010",
+      "id": "kilo-factory-010",
       "title": "[TUI] Implement visible role seed-session workflow",
       "type": "task",
       "priority": 0,
@@ -212,20 +212,20 @@
         "kilo"
       ],
       "deps": [
-        "kf-001",
-        "kf-005",
-        "kf-008"
+        "kilo-factory-001",
+        "kilo-factory-005",
+        "kilo-factory-008"
       ],
       "description": "Provide a user workflow for visible Kilo role seed sessions. User manually selects provider/model/reasoning. Factory records/observes seed session identity and never silently overrides model settings.",
       "acceptance": [
         "Configured number of roles is arbitrary.",
         "CLI prints copyable attach/open instructions for every role.",
-        "Manual model/provider/variant selection is preserved using only behavior proven by kf-001.",
+        "Manual model/provider/variant selection is preserved using only behavior proven by kilo-factory-001.",
         "Seed sessions are not reused as cross-task memory."
       ]
     },
     {
-      "id": "kf-011",
+      "id": "kilo-factory-011",
       "title": "[SCHED] Implement event-driven idle continuation with bounded no-progress recovery",
       "type": "task",
       "priority": 1,
@@ -234,9 +234,9 @@
         "recovery"
       ],
       "deps": [
-        "kf-005",
-        "kf-008",
-        "kf-009"
+        "kilo-factory-005",
+        "kilo-factory-008",
+        "kilo-factory-009"
       ],
       "description": "Use Kilo session events to observe job progress. Idle without terminal result may trigger bounded continuation/recovery for the same generation, never an unbounded loop.",
       "acceptance": [
@@ -247,7 +247,7 @@
       ]
     },
     {
-      "id": "kf-012",
+      "id": "kilo-factory-012",
       "title": "[CORE] Verify candidate/result artifacts and reject stale generations",
       "type": "task",
       "priority": 0,
@@ -256,9 +256,9 @@
         "fencing"
       ],
       "deps": [
-        "kf-004",
-        "kf-007",
-        "kf-008"
+        "kilo-factory-004",
+        "kilo-factory-007",
+        "kilo-factory-008"
       ],
       "description": "Independently verify plugin completion claims against Git and durable state. Reject wrong job, wrong generation, wrong base/head, dirty contradictions and stale results.",
       "acceptance": [
@@ -269,7 +269,7 @@
       ]
     },
     {
-      "id": "kf-013",
+      "id": "kilo-factory-013",
       "title": "[INTEGRATION] Implement isolated green-main integration pipeline",
       "type": "task",
       "priority": 0,
@@ -278,8 +278,8 @@
         "git"
       ],
       "deps": [
-        "kf-007",
-        "kf-012"
+        "kilo-factory-007",
+        "kilo-factory-012"
       ],
       "description": "Integrate candidate commits only in a temporary integration worktree/branch, run project-configured validation, then promote through one deterministic writer.",
       "acceptance": [
@@ -290,7 +290,7 @@
       ]
     },
     {
-      "id": "kf-014",
+      "id": "kilo-factory-014",
       "title": "[CLI] Implement init/start/sessions/status/inspect/pause/resume/stop/doctor",
       "type": "feature",
       "priority": 0,
@@ -299,9 +299,9 @@
         "ux"
       ],
       "deps": [
-        "kf-008",
-        "kf-010",
-        "kf-013"
+        "kilo-factory-008",
+        "kilo-factory-010",
+        "kilo-factory-013"
       ],
       "description": "Build the explicit lifecycle CLI. Keep it simple and observable. No hidden persistence outside durable project state.",
       "acceptance": [
@@ -314,7 +314,7 @@
       ]
     },
     {
-      "id": "kf-015",
+      "id": "kilo-factory-015",
       "title": "[RECOVERY] Implement crash/reboot reconciliation",
       "type": "task",
       "priority": 0,
@@ -323,9 +323,9 @@
         "durability"
       ],
       "deps": [
-        "kf-008",
-        "kf-012",
-        "kf-014"
+        "kilo-factory-008",
+        "kilo-factory-012",
+        "kilo-factory-014"
       ],
       "description": "Recover after coordinator death, Kilo restart or machine reboot using SQLite plus observed Git/Beads/Kilo state.",
       "acceptance": [
@@ -337,7 +337,7 @@
       ]
     },
     {
-      "id": "kf-016",
+      "id": "kilo-factory-016",
       "title": "[SECURITY] Harden process/session ownership and local server lifecycle",
       "type": "task",
       "priority": 1,
@@ -346,8 +346,8 @@
         "process"
       ],
       "deps": [
-        "kf-005",
-        "kf-014"
+        "kilo-factory-005",
+        "kilo-factory-014"
       ],
       "description": "Make start/stop ownership precise. Bind factory-started server locally, use per-run credentials if supported, track process/session ownership, and never kill unrelated Kilo processes.",
       "acceptance": [
@@ -358,7 +358,7 @@
       ]
     },
     {
-      "id": "kf-017",
+      "id": "kilo-factory-017",
       "title": "[TEST] Add context contamination and fencing regression suite",
       "type": "task",
       "priority": 0,
@@ -367,8 +367,8 @@
         "context"
       ],
       "deps": [
-        "kf-009",
-        "kf-012"
+        "kilo-factory-009",
+        "kilo-factory-012"
       ],
       "description": "Encode the previously observed stale-task-memory failure as deterministic tests.",
       "acceptance": [
@@ -379,7 +379,7 @@
       ]
     },
     {
-      "id": "kf-018",
+      "id": "kilo-factory-018",
       "title": "[TEST] Build fault-injection matrix for overnight autonomy",
       "type": "task",
       "priority": 0,
@@ -388,10 +388,10 @@
         "fault-injection"
       ],
       "deps": [
-        "kf-011",
-        "kf-013",
-        "kf-015",
-        "kf-016"
+        "kilo-factory-011",
+        "kilo-factory-013",
+        "kilo-factory-015",
+        "kilo-factory-016"
       ],
       "description": "Automate the failure matrix in docs/TESTING.md, including coordinator/session death, stale/duplicate results, dirty worktree, merge/validation failure, pause/stop, Kilo restart and simultaneous roles.",
       "acceptance": [
@@ -402,7 +402,7 @@
       ]
     },
     {
-      "id": "kf-019",
+      "id": "kilo-factory-019",
       "title": "[OBS] Implement structured event log and high-signal status views",
       "type": "task",
       "priority": 1,
@@ -411,8 +411,8 @@
         "cli"
       ],
       "deps": [
-        "kf-008",
-        "kf-014"
+        "kilo-factory-008",
+        "kilo-factory-014"
       ],
       "description": "Expose orchestration truth without requiring users to tail raw Kilo logs.",
       "acceptance": [
@@ -423,7 +423,7 @@
       ]
     },
     {
-      "id": "kf-020",
+      "id": "kilo-factory-020",
       "title": "[PACKAGING] Support global Kilo plugin install and project init",
       "type": "feature",
       "priority": 1,
@@ -432,9 +432,9 @@
         "plugin"
       ],
       "deps": [
-        "kf-004",
-        "kf-014",
-        "kf-016"
+        "kilo-factory-004",
+        "kilo-factory-014",
+        "kilo-factory-016"
       ],
       "description": "Package the universal plugin/CLI for global installation while keeping project configuration local.",
       "acceptance": [
@@ -445,7 +445,7 @@
       ]
     },
     {
-      "id": "kf-021",
+      "id": "kilo-factory-021",
       "title": "[COMPAT] Add Kilo version/capability guard",
       "type": "task",
       "priority": 1,
@@ -454,8 +454,8 @@
         "kilo"
       ],
       "deps": [
-        "kf-001",
-        "kf-005"
+        "kilo-factory-001",
+        "kilo-factory-005"
       ],
       "description": "Detect unsupported Kilo versions/capabilities early instead of failing mid-shift.",
       "acceptance": [
@@ -465,7 +465,7 @@
       ]
     },
     {
-      "id": "kf-022",
+      "id": "kilo-factory-022",
       "title": "[DOCS] Write universal project onboarding and operations guide",
       "type": "task",
       "priority": 1,
@@ -474,9 +474,9 @@
         "ux"
       ],
       "deps": [
-        "kf-014",
-        "kf-020",
-        "kf-021"
+        "kilo-factory-014",
+        "kilo-factory-020",
+        "kilo-factory-021"
       ],
       "description": "Document installation, factory init, role config, Beads setup, visible Kilo TUIs/manual model selection, overnight operation, status inspection, pause/resume/stop and recovery.",
       "acceptance": [
@@ -487,7 +487,7 @@
       ]
     },
     {
-      "id": "kf-023",
+      "id": "kilo-factory-023",
       "title": "[RELEASE] Prove multi-cycle unattended factory acceptance",
       "type": "task",
       "priority": 0,
@@ -496,12 +496,12 @@
         "e2e"
       ],
       "deps": [
-        "kf-017",
-        "kf-018",
-        "kf-019",
-        "kf-020",
-        "kf-021",
-        "kf-022"
+        "kilo-factory-017",
+        "kilo-factory-018",
+        "kilo-factory-019",
+        "kilo-factory-020",
+        "kilo-factory-021",
+        "kilo-factory-022"
       ],
       "description": "Run an end-to-end disposable fixture with multiple roles/tasks across several full cycles. The user-facing role sessions remain visible and manually model-configurable; production work uses isolated job sessions; integration stays green; stop fully folds the factory away.",
       "acceptance": [
