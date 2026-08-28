@@ -1,0 +1,20 @@
+node_modules/
+dist/
+coverage/
+.DS_Store
+
+# kilo-factory project runtime (when dogfooding this repository)
+.kilo-factory/
+
+# Beads local/Dolt runtime
+.dolt/
+.beads/proxieddb/
+.beads-credential-key
+
+# env/secrets
+.env
+.env.*
+!.env.example
+*.secret
+*.key
+*.pem
