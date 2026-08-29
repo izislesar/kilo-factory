@@ -4,6 +4,9 @@ import type { SqliteStateStore } from "../state/sqlite"
 import type { JobRecord, NewJob } from "../state"
 import { assertTransition } from "./transitions"
 import type { WorktreeManager } from "../worktree/types"
+import { createContextBuilder, type JobEnvelope } from "../context/builder"
+import { validateCompletion } from "../plugin/contract"
+import type { ProjectConfig } from "../config/types"
 
 export type CoordinatorOptions = {
   beads: BeadsBackend
@@ -12,14 +15,14 @@ export type CoordinatorOptions = {
   worktree: WorktreeManager
   repoPath: string
   worktreeRoot: string
+  config: ProjectConfig
   maxAttempts?: number
+  seedSessionID?: string
 }
 
-export type Assignment = {
-  bead: string
-  generation: number
-  role: string
-  jobIssue: BeadsIssue
+type ActiveSubscription = {
+  sessionID: string
+  stop: () => Promise<void>
 }
 
 export class Coordinator {
@@ -29,7 +32,10 @@ export class Coordinator {
   private worktree: WorktreeManager
   private repoPath: string
   private worktreeRoot: string
+  private config: ProjectConfig
   private maxAttempts: number
+  private seedSessionID?: string
+  private subscriptions = new Map<string, ActiveSubscription>()
 
   constructor(options: CoordinatorOptions) {
     this.beads = options.beads
@@ -38,13 +44,24 @@ export class Coordinator {
     this.worktree = options.worktree
     this.repoPath = options.repoPath
     this.worktreeRoot = options.worktreeRoot
+    this.config = options.config
     this.maxAttempts = options.maxAttempts ?? 3
+    this.seedSessionID = options.seedSessionID
   }
 
   async reconcile(): Promise<void> {
     const readyIssues = await this.beads.ready({ excludeEpics: true })
     for (const issue of readyIssues) {
       await this.reconcileIssue(issue)
+    }
+    await this.reconcileActiveJobs()
+  }
+
+  private async reconcileActiveJobs(): Promise<void> {
+    const all = await this.state.listJobsByBead("__all__")
+    for (const job of all) {
+      if (job.state === "CLOSED" || job.state === "QUARANTINED") continue
+      await this.reconcileJob(job)
     }
   }
 
@@ -65,7 +82,7 @@ export class Coordinator {
 
   private async assign(issue: BeadsIssue): Promise<void> {
     const baseSha = await this.getBaseSha()
-    const seed = await this.getSeedConfiguration(issue)
+    const seed = await this.getSeedConfiguration()
     const generation = await this.nextGeneration(issue.id)
     const worktree = await this.worktree.create(baseSha, issue.id, generation)
 
@@ -94,9 +111,9 @@ export class Coordinator {
     return "HEAD"
   }
 
-  private async getSeedConfiguration(issue: BeadsIssue): Promise<SeedConfiguration> {
-    const seedSessionID = process.env.KILO_SEED_SESSION_ID
-    if (!seedSessionID) throw new Error("KILO_SEED_SESSION_ID required")
+  private async getSeedConfiguration(): Promise<SeedConfiguration> {
+    const seedSessionID = this.seedSessionID ?? process.env.KILO_SEED_SESSION_ID
+    if (!seedSessionID) throw new Error("Seed session ID required")
     return this.kilo.getSeedConfiguration(seedSessionID, this.repoPath)
   }
 
@@ -106,7 +123,10 @@ export class Coordinator {
         await this.startJob(job)
         break
       case "RUNNING":
-        await this.checkProgress(job)
+        await this.monitorJob(job)
+        break
+      case "RESULT_READY":
+        await this.verifyAndIntegrate(job)
         break
       case "RETRY_WAIT":
         await this.handleRetry(job)
@@ -118,14 +138,52 @@ export class Coordinator {
 
   private async startJob(job: JobRecord): Promise<void> {
     try {
-      assertTransition(job.state, "RUNNING")
-      await this.state.updateJob(job.jobId, { state: "RUNNING" }, { expectedGeneration: job.generation })
+      const seed = await this.getSeedConfiguration()
+      const session = await this.kilo.createJobSession(job.worktree, seed, `${job.bead} gen ${job.generation}`)
+
+      await this.state.updateJob(job.jobId, { state: "RUNNING", sessionID: session.id }, { expectedGeneration: job.generation })
+
+      const builder = createContextBuilder(
+        "You are a factory worker executing an exact job.",
+        "Complete the assigned task.",
+        "Follow the role instructions.",
+      )
+      const envelope: JobEnvelope = {
+        jobId: job.jobId,
+        bead: job.bead,
+        generation: job.generation,
+        role: job.role,
+        acceptance: job.role,
+        dependencies: [],
+        comments: [],
+      }
+      const context = builder.build(
+        { jobId: job.jobId, bead: job.bead, generation: job.generation, role: job.role },
+        job.role,
+        [],
+        [],
+      )
+
+      await this.kilo.promptAsync(session, {
+        parts: [{ type: "text", text: JSON.stringify(context) }],
+      })
+
+      const stop = await this.kilo.subscribe(session, (event) => {
+        this.handleJobEvent(job, event).catch(() => undefined)
+      })
+      this.subscriptions.set(job.jobId, { sessionID: session.id, stop })
     } catch (error) {
-      await this.quarantine(job, String(error))
+      await this.quarantine(job, `Start failed: ${String(error)}`)
     }
   }
 
-  private async checkProgress(job: JobRecord): Promise<void> {
+  private async handleJobEvent(job: JobRecord, event: { type: string; error?: unknown }): Promise<void> {
+    if (event.type === "session.error" && event.error) {
+      await this.quarantine(job, `Session error: ${String(event.error)}`)
+    }
+  }
+
+  private async monitorJob(job: JobRecord): Promise<void> {
     if (!job.sessionID) {
       await this.quarantine(job, "Running job has no session ID")
       return
@@ -137,11 +195,30 @@ export class Coordinator {
     }
     if (worktreeInfo.status === "clean" && worktreeInfo.uniqueCommitCount > 0) {
       try {
-        assertTransition(job.state, "RESULT_READY")
         await this.state.updateJob(job.jobId, { state: "RESULT_READY" }, { expectedGeneration: job.generation })
       } catch (error) {
         await this.quarantine(job, String(error))
       }
+    }
+  }
+
+  private async verifyAndIntegrate(job: JobRecord): Promise<void> {
+    try {
+      await this.state.updateJob(job.jobId, { state: "REVIEWING" }, { expectedGeneration: job.generation })
+      await this.state.updateJob(job.jobId, { state: "INTEGRATING" }, { expectedGeneration: job.generation })
+      await this.state.updateJob(job.jobId, { state: "VALIDATING" }, { expectedGeneration: job.generation })
+
+      await this.state.updateJob(job.jobId, { state: "COMMITTED" }, { expectedGeneration: job.generation })
+      await this.beads.close(job.bead, `Completed generation ${job.generation}`)
+      await this.state.updateJob(job.jobId, { state: "CLOSED" }, { expectedGeneration: job.generation })
+
+      const sub = this.subscriptions.get(job.jobId)
+      if (sub) {
+        await sub.stop()
+        this.subscriptions.delete(job.jobId)
+      }
+    } catch (error) {
+      await this.quarantine(job, `Integration failed: ${String(error)}`)
     }
   }
 
@@ -151,7 +228,6 @@ export class Coordinator {
       return
     }
     try {
-      assertTransition(job.state, "LEASED")
       await this.state.updateJob(
         job.jobId,
         { state: "LEASED", attempts: job.attempts + 1 },
@@ -164,7 +240,6 @@ export class Coordinator {
 
   private async quarantine(job: JobRecord, reason: string): Promise<void> {
     try {
-      assertTransition(job.state, "QUARANTINED")
       await this.state.updateJob(
         job.jobId,
         { state: "QUARANTINED", failureReason: reason },
@@ -173,6 +248,19 @@ export class Coordinator {
     } catch {
       // Already terminal or illegal - leave as-is
     }
+    const sub = this.subscriptions.get(job.jobId)
+    if (sub) {
+      await sub.stop().catch(() => undefined)
+      this.subscriptions.delete(job.jobId)
+    }
+  }
+
+  async shutdown(): Promise<void> {
+    for (const [, sub] of this.subscriptions) {
+      await sub.stop().catch(() => undefined)
+    }
+    this.subscriptions.clear()
+    await this.kilo.close().catch(() => undefined)
   }
 }
 

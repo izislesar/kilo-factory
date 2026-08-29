@@ -4,6 +4,7 @@ import type { BeadsBackend, BeadsIssue } from "../../src/beads/types"
 import type { KiloAdapter, SeedConfiguration } from "../../src/kilo/types"
 import { SqliteStateStore } from "../../src/state/sqlite"
 import type { WorktreeManager, WorktreeInfo } from "../../src/worktree/types"
+import type { ProjectConfig } from "../../src/config/types"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -93,6 +94,7 @@ describe("Coordinator", () => {
       worktree,
       repoPath: "/repo",
       worktreeRoot: "/wt",
+      config: { version: 1, mainBranch: "main", roles: [{ name: "core" }] },
     })
 
     process.env.KILO_SEED_SESSION_ID = "ses_seed"
@@ -122,6 +124,7 @@ describe("Coordinator", () => {
       worktree,
       repoPath: "/repo",
       worktreeRoot: "/wt",
+      config: { version: 1, mainBranch: "main", roles: [{ name: "core" }] },
     })
 
     process.env.KILO_SEED_SESSION_ID = "ses_seed"
@@ -148,6 +151,7 @@ describe("Coordinator", () => {
       worktree,
       repoPath: "/repo",
       worktreeRoot: "/wt",
+      config: { version: 1, mainBranch: "main", roles: [{ name: "core" }] },
       maxAttempts: 2,
     })
 
