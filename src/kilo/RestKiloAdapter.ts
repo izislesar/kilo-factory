@@ -15,6 +15,15 @@ type SessionRecord = {
   model?: { id?: string; modelID?: string; providerID?: string; variant?: string }
 }
 
+export class KiloAdapterError extends Error {
+  constructor(
+    message: string,
+    public readonly status?: number,
+  ) {
+    super(message)
+  }
+}
+
 export class RestKiloAdapter implements KiloAdapter {
   private readonly options: KiloServerOptions
   private readonly subscribers = new Map<string, { controller: AbortController; promise: Promise<void> }>()
@@ -39,8 +48,15 @@ export class RestKiloAdapter implements KiloAdapter {
     return base.toString()
   }
 
-  private directoryHeaders(): Record<string, string> {
-    return { "x-kilo-directory": this.options.directory }
+  private directoryHeaders(directory: string): Record<string, string> {
+    return { "x-kilo-directory": directory }
+  }
+
+  private async expectOk(response: Response, context: string): Promise<void> {
+    if (!response.ok) {
+      const body = await response.text().catch(() => "")
+      throw new KiloAdapterError(`${context} failed with ${response.status}: ${body}`, response.status)
+    }
   }
 
   async health(): Promise<boolean> {
@@ -54,12 +70,14 @@ export class RestKiloAdapter implements KiloAdapter {
 
   async listSessions(directory: string): Promise<SessionReference[]> {
     const response = await fetch(this.url("/session", directory), { headers: this.headers() })
+    await this.expectOk(response, "listSessions")
     const sessions = (await response.json()) as SessionRecord[]
     return sessions.map((session) => ({ id: session.id, directory }))
   }
 
   async getSeedConfiguration(sessionID: string, directory: string): Promise<SeedConfiguration> {
     const response = await fetch(this.url(`/session/${sessionID}`, directory), { headers: this.headers() })
+    await this.expectOk(response, "getSeedConfiguration")
     const session = (await response.json()) as SessionRecord
     if (!session.agent || !session.model?.providerID || !(session.model?.id ?? session.model?.modelID)) {
       throw new Error(`Seed session ${sessionID} is missing required agent/model configuration`)
@@ -86,34 +104,38 @@ export class RestKiloAdapter implements KiloAdapter {
     if (title) body.title = title
     const response = await fetch(this.url("/session"), {
       method: "POST",
-      headers: { ...this.headers(), ...this.directoryHeaders(), "content-type": "application/json" },
+      headers: { ...this.headers(), ...this.directoryHeaders(directory), "content-type": "application/json" },
       body: JSON.stringify(body),
     })
+    await this.expectOk(response, "createJobSession")
     const session = (await response.json()) as SessionRecord
     return { id: session.id, directory }
   }
 
   async promptAsync(session: SessionReference, request: PromptRequest): Promise<void> {
-    await fetch(this.url(`/session/${session.id}/prompt_async`), {
+    const response = await fetch(this.url(`/session/${session.id}/prompt_async`), {
       method: "POST",
-      headers: { ...this.headers(), ...this.directoryHeaders(), "content-type": "application/json" },
+      headers: { ...this.headers(), ...this.directoryHeaders(session.directory), "content-type": "application/json" },
       body: JSON.stringify({ parts: request.parts }),
     })
+    await this.expectOk(response, "promptAsync")
   }
 
   async abort(session: SessionReference): Promise<void> {
-    await fetch(this.url(`/session/${session.id}/abort`), {
+    const response = await fetch(this.url(`/session/${session.id}/abort`), {
       method: "POST",
-      headers: { ...this.headers(), ...this.directoryHeaders() },
+      headers: { ...this.headers(), ...this.directoryHeaders(session.directory) },
     })
+    await this.expectOk(response, "abort")
   }
 
   async delete(session: SessionReference): Promise<void> {
     await this.unsubscribe(session)
-    await fetch(this.url(`/session/${session.id}`, session.directory), {
+    const response = await fetch(this.url(`/session/${session.id}`, session.directory), {
       method: "DELETE",
       headers: { ...this.headers() },
     })
+    await this.expectOk(response, "delete")
   }
 
   async subscribe(session: SessionReference, handler: (event: KiloSessionEvent) => void): Promise<() => Promise<void>> {
@@ -160,7 +182,7 @@ export class RestKiloAdapter implements KiloAdapter {
       headers: this.headers(),
       signal: controller.signal,
     })
-    if (!response.ok || !response.body) throw new Error(`SSE stream failed: ${response.status}`)
+    if (!response.ok || !response.body) throw new KiloAdapterError(`SSE stream failed: ${response.status}`, response.status)
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ""

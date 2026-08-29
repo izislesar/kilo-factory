@@ -6,7 +6,7 @@ export type KiloServerOptions = {
   url: string
   directory: string
   username?: string
-  password: string
+  password?: string
 }
 
 export type SessionReference = {
