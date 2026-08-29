@@ -84,16 +84,27 @@ export async function cmdStart(ctx: CommandContext): Promise<CommandOutput> {
     config, seedSessionID: process.env.KILO_SEED_SESSION_ID,
   })
 
-  await events.log({ level: "info", type: "factory.started", message: "Factory starting" })
+  let running = true
+  const onSignal = () => { running = false }
+  process.on("SIGINT", onSignal)
+  process.on("SIGTERM", onSignal)
 
-  try {
-    await coordinator.reconcile()
-    await events.log({ level: "info", type: "factory.reconciled", message: "Reconcile complete" })
-    lines.push("Factory reconcile complete")
-  } catch (error) {
-    errors.push(`Reconcile error: ${String(error)}`)
+  await events.log({ level: "info", type: "factory.started", message: "Factory controller active" })
+  lines.push("Factory controller active - scheduling and reconciliation running")
+
+  let cycles = 0
+  while (running && cycles < 100) {
+    try {
+      await coordinator.reconcile()
+      cycles++
+    } catch (error) {
+      errors.push(`Reycle error: ${String(error)}`)
+      await events.log({ level: "error", type: "factory.error", message: String(error) })
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000))
   }
 
+  await events.log({ level: "info", type: "factory.stopped", message: `Stopped after ${cycles} cycles` })
   await coordinator.shutdown()
   await state.close()
   await kilo.close()
