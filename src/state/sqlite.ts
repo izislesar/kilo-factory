@@ -40,6 +40,23 @@ export type UpdateOptions = {
   expectedGeneration?: number
 }
 
+const CURRENT_SCHEMA_VERSION = 1
+
+const COLUMN_MAP: Record<string, string> = {
+  jobId: "job_id",
+  bead: "bead",
+  generation: "generation",
+  role: "role",
+  baseSha: "base_sha",
+  worktree: "worktree",
+  state: "state",
+  sessionID: "session_id",
+  attempts: "attempts",
+  failureReason: "failure_reason",
+  createdAt: "created_at",
+  updatedAt: "updated_at",
+}
+
 export class SqliteStateStore {
   private db: Database
 
@@ -71,63 +88,89 @@ export class SqliteStateStore {
         value INTEGER NOT NULL
       )
     `)
-    this.db.exec(
-      `INSERT OR IGNORE INTO schema_version (key, value) VALUES ('version', 1)`,
-    )
+    this.migrate()
+  }
+
+  private migrate(): void {
+    const row = this.db
+      .query<{ value: number }, []>("SELECT value FROM schema_version WHERE key = 'version'")
+      .get()
+    const current = row?.value ?? 0
+    if (current < CURRENT_SCHEMA_VERSION) {
+      this.db.transaction(() => {
+        this.db.exec(`INSERT OR REPLACE INTO schema_version (key, value) VALUES ('version', ${CURRENT_SCHEMA_VERSION})`)
+      })()
+    }
   }
 
   async upsertJob(job: NewJob): Promise<void> {
     const now = new Date().toISOString()
-    const existing = this.db
-      .query<{ created_at: string }, [string]>("SELECT created_at FROM jobs WHERE job_id = ?")
-      .get(job.jobId)
-    const createdAt = existing?.created_at ?? now
-    this.db
-      .query(
-        `INSERT OR REPLACE INTO jobs
-         (job_id, bead, generation, role, base_sha, worktree, state, session_id, attempts, failure_reason, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        job.jobId,
-        job.bead,
-        job.generation,
-        job.role,
-        job.baseSha,
-        job.worktree,
-        job.state,
-        job.sessionID ?? null,
-        job.attempts ?? 0,
-        job.failureReason ?? null,
-        createdAt,
-        now,
-      )
+    this.db.transaction(() => {
+      const existing = this.db
+        .query<{ created_at: string; generation: number }, [string]>("SELECT created_at, generation FROM jobs WHERE job_id = ?")
+        .get(job.jobId)
+
+      if (existing && existing.generation > job.generation) {
+        return
+      }
+
+      const createdAt = existing?.created_at ?? now
+      this.db
+        .query(
+          `INSERT OR REPLACE INTO jobs
+           (job_id, bead, generation, role, base_sha, worktree, state, session_id, attempts, failure_reason, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          job.jobId,
+          job.bead,
+          job.generation,
+          job.role,
+          job.baseSha,
+          job.worktree,
+          job.state,
+          job.sessionID ?? null,
+          job.attempts ?? 0,
+          job.failureReason ?? null,
+          createdAt,
+          now,
+        )
+    })()
   }
 
   async updateJob(jobId: string, update: JobUpdate, options: UpdateOptions = {}): Promise<void> {
-    if (options.expectedGeneration !== undefined) {
-      const current = this.db
-        .query<{ generation: number }, [string]>("SELECT generation FROM jobs WHERE job_id = ?")
-        .get(jobId)
-      if (!current || current.generation !== options.expectedGeneration) {
-        throw new Error(
-          `stale generation: expected ${options.expectedGeneration} but found ${current?.generation ?? "none"}`,
-        )
-      }
-    }
     const fields: string[] = []
     const values: unknown[] = []
     for (const [key, value] of Object.entries(update)) {
       if (value === undefined) continue
-      const column = toSnakeCase(key)
+      const column = COLUMN_MAP[key]
+      if (!column) continue
       fields.push(`${column} = ?`)
       values.push(value)
     }
     if (fields.length === 0) return
+
     fields.push("updated_at = ?")
     values.push(new Date().toISOString())
     values.push(jobId)
-    this.db.query(`UPDATE jobs SET ${fields.join(", ")} WHERE job_id = ?`).run(...(values as never[]))
+
+    if (options.expectedGeneration !== undefined) {
+      values.push(options.expectedGeneration)
+    }
+
+    const whereClause = options.expectedGeneration !== undefined
+      ? "WHERE job_id = ? AND generation = ?"
+      : "WHERE job_id = ?"
+
+    const sql = `UPDATE jobs SET ${fields.join(", ")} ${whereClause}`
+    const result = this.db.query(sql).run(...(values as never[]))
+
+    if (result.changes === 0) {
+      if (options.expectedGeneration !== undefined) {
+        throw new Error(`stale generation: no row updated for ${jobId} with generation ${options.expectedGeneration}`)
+      }
+      throw new Error(`job not found: ${jobId}`)
+    }
   }
 
   async getJob(jobId: string): Promise<JobRecord | null> {
@@ -155,25 +198,6 @@ export class SqliteStateStore {
   }
 }
 
-const COLUMN_MAP: Record<string, string> = {
-  jobId: "job_id",
-  bead: "bead",
-  generation: "generation",
-  role: "role",
-  baseSha: "base_sha",
-  worktree: "worktree",
-  state: "state",
-  sessionID: "session_id",
-  attempts: "attempts",
-  failureReason: "failure_reason",
-  createdAt: "created_at",
-  updatedAt: "updated_at",
-}
-
-function toSnakeCase(key: string): string {
-  return COLUMN_MAP[key] ?? key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
-}
-
 function fromRow(row: Record<string, unknown>): JobRecord {
   return {
     jobId: row.job_id as string,
@@ -189,4 +213,8 @@ function fromRow(row: Record<string, unknown>): JobRecord {
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   }
+}
+
+export function createStateStore(path: string): SqliteStateStore {
+  return new SqliteStateStore(path)
 }
