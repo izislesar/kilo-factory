@@ -1,5 +1,9 @@
 # Night-shift production report
 
+> **SUPERSEDED RELEASE EVIDENCE — DO NOT USE AS CURRENT SHIP PROOF**
+>
+> A subsequent source-level review found that this report overstated runtime readiness: several acceptance tests exercised scaffolds/components rather than the shipped autonomous lifecycle. Repair beads `kilo-factory-034` through `kilo-factory-054` now supersede this conclusion, and `kilo-factory-053` is the corrected release gate. This file remains as historical evidence until bead 054 rewrites it after the corrected gate.
+
 ## Work completed
 
 Closed 33 production beads implementing and proving the kilo-factory core, plus 1 discovered defect bead.

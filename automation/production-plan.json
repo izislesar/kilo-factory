@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "project": "kilo-factory",
   "epic": {
     "id": "kilo-factory-000",
@@ -748,6 +748,518 @@
         "Report includes exact final test/typecheck/lint/build results and final Beads state.",
         "Report lists any genuine external blockers with evidence.",
         "Report gives exact commands the owner can run to independently verify the release."
+      ]
+    },
+    {
+      "id": "kilo-factory-034",
+      "title": "[RESET] Invalidate false-positive release gate and reconcile shipped runtime surface",
+      "type": "task",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "audit",
+        "release"
+      ],
+      "deps": [],
+      "description": "Post-acceptance code review found that the prior production gate was a false positive: several tests proved scaffolds/components rather than the shipped autonomous lifecycle. Treat previous bead 032/033 closure and NIGHT_SHIFT_REPORT conclusions as historical, not ship evidence. Audit actual exported CLI/plugin/runtime wiring and anchor the repair DAG on observed code behavior.",
+      "acceptance": [
+        "Record that the previous production-ready conclusion is superseded by this repair wave.",
+        "Confirm from shipped source which documented CLI commands and Kilo plugin tools actually exist.",
+        "Confirm whether Coordinator can create/prompt/observe a job session and whether active jobs are reconciled independently of bd ready.",
+        "Confirm whether integration/recovery/observability implementations perform real side effects or are decision/validation stubs.",
+        "Do not close this bead by editing documentation alone; leave exact code references/evidence in the bead."
+      ]
+    },
+    {
+      "id": "kilo-factory-035",
+      "title": "[CLI] Implement and wire the real lifecycle command surface",
+      "type": "feature",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "cli",
+        "runtime"
+      ],
+      "deps": [
+        "kilo-factory-034"
+      ],
+      "description": "Replace the current init/help/version-only shipped CLI with the actual factory lifecycle surface and wire it to real implementations rather than an unused dispatcher abstraction.",
+      "acceptance": [
+        "Shipped factory CLI implements start, sessions, status, inspect, pause, resume, stop, doctor, init, help and version.",
+        "src/cli.ts routes commands through production command implementations; no documented command exists only as a type/test stub.",
+        "start performs configuration/capability validation and verifies coordinator/server liveness.",
+        "pause/resume affect durable scheduling state; stop performs bounded owned shutdown; doctor/status/inspect read real state.",
+        "CLI exit codes reflect asynchronous command success/failure correctly; init does not return success before its async work finishes.",
+        "End-to-end CLI tests execute the built dist/cli.js, not only CommandDispatcher unit stubs."
+      ]
+    },
+    {
+      "id": "kilo-factory-036",
+      "title": "[PLUGIN] Implement real Kilo factory_job factory_complete and factory_block tools",
+      "type": "feature",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "plugin",
+        "kilo"
+      ],
+      "deps": [
+        "kilo-factory-034"
+      ],
+      "description": "The shipped Kilo plugin currently returns an empty object. Implement the actual factory-controlled plugin surface used by job sessions while leaving normal Kilo sessions unaffected.",
+      "acceptance": [
+        "factoryServerPlugin registers working factory_job, factory_complete and factory_block tools/hooks using the verified Kilo plugin API.",
+        "Tools are exposed only inside authenticated/identified factory job sessions.",
+        "factory_job returns the exact immutable job identity/generation.",
+        "factory_complete and factory_block emit machine-readable generation-fenced results consumed by the coordinator.",
+        "Exact jobId and generation must agree; strings like expected test:1 with payload test:999 cannot pass by matching only the prefix.",
+        "Real Kilo plugin contract test invokes the tools through Kilo rather than directly calling validator helper functions."
+      ]
+    },
+    {
+      "id": "kilo-factory-037",
+      "title": "[KILO] Harden directory-scoped adapter semantics and HTTP failure handling",
+      "type": "task",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "kilo",
+        "runtime"
+      ],
+      "deps": [
+        "kilo-factory-034"
+      ],
+      "description": "Harden RestKiloAdapter for job worktrees. Current request headers may use options.directory instead of the requested/session directory, and several methods parse responses without checking HTTP status.",
+      "acceptance": [
+        "Session creation, prompt, abort, delete and reads use the exact requested/session worktree directory according to verified Kilo semantics.",
+        "Adapter never silently creates/prompts a job in the coordinator repository when the job belongs to another worktree.",
+        "Every REST operation checks response.ok and returns/throws actionable typed errors on non-2xx responses.",
+        "SSE reconnect/dedup semantics remain bounded and session-filtered.",
+        "Real-server contract tests cover two distinct directories/worktrees and an intentional HTTP failure."
+      ]
+    },
+    {
+      "id": "kilo-factory-038",
+      "title": "[SCHED] Wire coordinator into a complete durable job execution loop",
+      "type": "feature",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "scheduler",
+        "core"
+      ],
+      "deps": [
+        "kilo-factory-036",
+        "kilo-factory-037",
+        "kilo-factory-042",
+        "kilo-factory-046"
+      ],
+      "description": "Turn the current partial Coordinator into the actual control loop. Assignment must create a job worktree/session, build exact context, persist session identity, prompt the worker, subscribe to events/results, verify completion, integrate, validate, close Beads, and continue. Active jobs must reconcile from durable state even after they are no longer returned by bd ready.",
+      "acceptance": [
+        "Assignment persists a generation-fenced job before external side effects and then creates/persists the real Kilo job session.",
+        "Coordinator sends the exact worker context/prompt to that job session and observes Kilo events plus structured completion/block results.",
+        "reconcile always processes existing nonterminal SQLite jobs, not only issues currently returned by bd ready.",
+        "A claimed/in-progress Bead continues progressing after it disappears from bd ready.",
+        "RESULT_READY -> REVIEWING -> INTEGRATING -> VALIDATING -> COMMITTED -> CLOSED is driven by real verifier/integrator outcomes.",
+        "Successful promotion closes Beads exactly once; failures enter retry/recovery/quarantine according to policy.",
+        "A real coordinator test demonstrates one complete job from ready Bead to closed Bead without manually mutating state."
+      ]
+    },
+    {
+      "id": "kilo-factory-039",
+      "title": "[ROLE] Implement configured role selection seed mapping and real concurrent scheduling",
+      "type": "feature",
+      "priority": 1,
+      "labels": [
+        "repair",
+        "roles",
+        "concurrency"
+      ],
+      "deps": [
+        "kilo-factory-038"
+      ],
+      "description": "Replace role=issue.title and one global KILO_SEED_SESSION_ID with project-configured role assignment and visible seed-session mapping that preserves each role's manually selected Kilo model/provider/reasoning.",
+      "acceptance": [
+        "Job role is selected from ProjectConfig.roles by an explicit deterministic policy/configuration, never copied from the Bead title.",
+        "Each configured role can map to its own live seed session and inherited model/provider/variant.",
+        "The coordinator can run independent ready jobs concurrently across available roles while preserving one owner per job.",
+        "Role capacity/backpressure is deterministic and restart-safe.",
+        "Tests prove two roles use distinct seed configurations and cannot cross-contaminate session/job identity."
+      ]
+    },
+    {
+      "id": "kilo-factory-040",
+      "title": "[VERIFY] Make completion authority and artifact verification independently authoritative",
+      "type": "task",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "verification",
+        "fencing"
+      ],
+      "deps": [
+        "kilo-factory-036",
+        "kilo-factory-038",
+        "kilo-factory-042",
+        "kilo-factory-046"
+      ],
+      "description": "Strengthen the verifier beyond head/dirty checks and wire it to structured plugin results plus durable state.",
+      "acceptance": [
+        "Completion is rejected unless exact jobId, generation, active session ownership and durable current generation all match.",
+        "Verifier independently checks expected base SHA, candidate head SHA, ancestry, branch/worktree ownership and dirty state.",
+        "Claimed checks/validation evidence are not trusted as sufficient proof; configured validation is executed independently.",
+        "Duplicate completion is idempotent and stale completion can never transition or integrate the current generation.",
+        "Verifier is actually invoked by the coordinator before integration.",
+        "Regression tests include mismatched embedded generation, wrong base, wrong branch/worktree and stale session completion."
+      ]
+    },
+    {
+      "id": "kilo-factory-041",
+      "title": "[INTEGRATION] Implement real isolated green-main integration and promotion",
+      "type": "feature",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "integration",
+        "git"
+      ],
+      "deps": [
+        "kilo-factory-040",
+        "kilo-factory-046"
+      ],
+      "description": "Replace validateIntegration string checks with a real single-writer integration pipeline.",
+      "acceptance": [
+        "Candidate is applied/merged in an isolated integration worktree based on the configured main branch.",
+        "Project-configured validation command is actually executed with timeout and captured evidence.",
+        "Validation failure and merge conflict leave the real main branch byte-for-byte/ref-identical.",
+        "Only one deterministic integration writer can promote at a time across concurrent jobs/restarts.",
+        "Promotion verifies expected main/base ancestry immediately before write and fails closed on drift.",
+        "Bead closure occurs only after successful promotion and final validation.",
+        "Integration tests create real Git repositories with successful merge, conflict, validation failure and concurrent promotion attempts."
+      ]
+    },
+    {
+      "id": "kilo-factory-042",
+      "title": "[STATE] Make generation fencing atomic and schema evolution real",
+      "type": "task",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "sqlite",
+        "durability"
+      ],
+      "deps": [
+        "kilo-factory-034"
+      ],
+      "description": "Fix SQLite fencing and durability semantics. Current expectedGeneration validation is SELECT-then-UPDATE TOCTOU and INSERT OR REPLACE can overwrite semantic state.",
+      "acceptance": [
+        "Generation-fenced mutations use atomic SQL predicates such as UPDATE ... WHERE job_id=? AND generation=? and verify affected row count.",
+        "Upsert cannot silently replace a newer generation or reset attempts/ownership/state.",
+        "Critical multi-field transitions use transactions where partial updates would violate invariants.",
+        "Schema version is actually checked/migrated rather than only INSERT OR IGNORE'd.",
+        "Concurrent store tests prove stale writers cannot win after a generation change.",
+        "Restart tests prove durable state remains internally consistent after interrupted transitions."
+      ]
+    },
+    {
+      "id": "kilo-factory-043",
+      "title": "[RECOVERY] Implement executable crash restart reconciliation across SQLite Git Beads and Kilo",
+      "type": "feature",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "recovery",
+        "durability"
+      ],
+      "deps": [
+        "kilo-factory-038",
+        "kilo-factory-041",
+        "kilo-factory-042",
+        "kilo-factory-044"
+      ],
+      "description": "Replace the pure determineAction table as the production recovery implementation with real observations and side effects.",
+      "acceptance": [
+        "Recovery enumerates nonterminal durable jobs and observes current Beads status, Git worktree/branch/head/dirty state and Kilo session/process state.",
+        "Clean no-commit jobs are safely retried/reissued within budget; dirty work is preserved; valid unique commits are recovered as candidates.",
+        "Lost/dead sessions are explicitly reconciled; stale sessions cannot regain ownership.",
+        "Unknown/contradictory observations transition the durable job to quarantine with evidence.",
+        "Restart cannot duplicate prompt dispatch, completion, integration or Bead closure.",
+        "Fault tests kill a real coordinator/job session at multiple lifecycle boundaries and then start a new coordinator to prove convergence."
+      ]
+    },
+    {
+      "id": "kilo-factory-044",
+      "title": "[LIFECYCLE] Make process server and session ownership durable enough for safe stop and doctor",
+      "type": "feature",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "security",
+        "process"
+      ],
+      "deps": [
+        "kilo-factory-035",
+        "kilo-factory-037",
+        "kilo-factory-038"
+      ],
+      "description": "Replace the in-memory PID map as the sole production ownership mechanism and implement the declared server lifecycle.",
+      "acceptance": [
+        "Factory-started server/process ownership survives coordinator restart or is re-derived using a durable per-run identity and verified process metadata.",
+        "PID reuse cannot cause an unrelated process to be treated as owned.",
+        "factory stop aborts owned Kilo job sessions first, attempts graceful termination, then uses bounded targeted fallback only for proven owned processes.",
+        "Unrelated pre-existing Kilo servers/processes always survive stop.",
+        "factory doctor reports stale ownership records, orphaned owned sessions/processes and cleanup actions without killing foreign processes.",
+        "ServerLifecycle has a real implementation with process-level integration tests."
+      ]
+    },
+    {
+      "id": "kilo-factory-045",
+      "title": "[OBS] Implement durable structured events and real status inspect views",
+      "type": "feature",
+      "priority": 1,
+      "labels": [
+        "repair",
+        "observability",
+        "cli"
+      ],
+      "deps": [
+        "kilo-factory-035",
+        "kilo-factory-038",
+        "kilo-factory-042"
+      ],
+      "description": "Replace the in-memory-only EventLogger as production observability and wire status/inspect to durable orchestration truth.",
+      "acceptance": [
+        "Important job transitions, retries, recovery, completion rejection, integration and failure classes are persisted durably.",
+        "factory status shows actual role/job/generation/state/session/worktree/base/head/attempts/age/last failure data.",
+        "factory inspect can explain why a job is blocked, recovering, quarantined or waiting.",
+        "Events survive coordinator restart and can be correlated by job/session/generation.",
+        "Redaction handles nested sensitive data rather than only top-level keys.",
+        "Retention/growth policy is explicit and bounded/maintainable."
+      ]
+    },
+    {
+      "id": "kilo-factory-046",
+      "title": "[GIT] Honor configured mainBranch and harden worktree path ownership",
+      "type": "task",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "git",
+        "security"
+      ],
+      "deps": [
+        "kilo-factory-034"
+      ],
+      "description": "Remove hardcoded main assumptions and strengthen worktree ownership/path containment.",
+      "acceptance": [
+        "Unique-commit/ancestry calculations use ProjectConfig.mainBranch rather than literal main.",
+        "Worktree paths are constructed with path APIs and validated to remain under the configured factory worktree root.",
+        "Untrusted Bead/job identifiers cannot escape the worktree root or produce ambiguous branch ownership.",
+        "remove/listOwned require both valid factory branch identity and path containment/ownership evidence.",
+        "Tests cover master/trunk mainBranch values, traversal-like job IDs and unrelated factory-prefixed branches."
+      ]
+    },
+    {
+      "id": "kilo-factory-047",
+      "title": "[PACKAGING] Make documented install actually enable a usable Kilo plugin and factory runtime",
+      "type": "feature",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "package",
+        "install"
+      ],
+      "deps": [
+        "kilo-factory-035",
+        "kilo-factory-036",
+        "kilo-factory-037"
+      ],
+      "description": "Prove and implement the real distribution/install path instead of merely exporting plugin.js.",
+      "acceptance": [
+        "npm/bun package contains every runtime file required by CLI/plugin operation.",
+        "Documented global/project install causes current Kilo to actually discover and load the plugin without manual symlinking to the source checkout.",
+        "factory init performs whatever project-local enablement/configuration current Kilo requires, idempotently and reversibly.",
+        "Uninstall/disable leaves project Git/Beads/runtime state recoverable and does not delete user work.",
+        "npm pack install test installs the tarball into a clean environment and verifies Kilo plugin discovery through the supported mechanism."
+      ]
+    },
+    {
+      "id": "kilo-factory-048",
+      "title": "[CI] Run real TypeScript build tests and plan validation on every main/PR",
+      "type": "task",
+      "priority": 1,
+      "labels": [
+        "repair",
+        "ci",
+        "release"
+      ],
+      "deps": [
+        "kilo-factory-034"
+      ],
+      "description": "The current workflow validates only Python/shell/bootstrap context. Add actual product gates.",
+      "acceptance": [
+        "GitHub Actions installs the pinned Bun/package dependencies reproducibly.",
+        "CI runs plan validation, typecheck, production build and the full non-env-gated test suite.",
+        "Package/CLI smoke tests execute built artifacts.",
+        "CI fails on TypeScript/runtime/test/package regressions.",
+        "Live Kilo tests remain explicitly separate/env-gated unless a safe CI Kilo runtime is provisioned."
+      ]
+    },
+    {
+      "id": "kilo-factory-049",
+      "title": "[E2E] Prove one true shipped autonomous lifecycle through CLI plugin coordinator and Beads",
+      "type": "task",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "e2e",
+        "release"
+      ],
+      "deps": [
+        "kilo-factory-035",
+        "kilo-factory-036",
+        "kilo-factory-037",
+        "kilo-factory-038",
+        "kilo-factory-040",
+        "kilo-factory-041",
+        "kilo-factory-042",
+        "kilo-factory-043",
+        "kilo-factory-044",
+        "kilo-factory-045",
+        "kilo-factory-046",
+        "kilo-factory-047"
+      ],
+      "description": "Replace component-smoke tests mislabeled as E2E with a black-box acceptance test of the shipped factory.",
+      "acceptance": [
+        "Fixture contains at least one real Bead whose implementation requires a file/code change by a real Kilo job session.",
+        "Test starts the shipped factory runtime through its supported CLI/install path; it must not manually mutate SQLite lifecycle states.",
+        "The coordinator claims the Bead, creates the worktree/session, sends job context, receives structured completion, independently verifies, integrates, validates and closes the Bead.",
+        "The expected code/file change is present on fixture main after completion and validation command passes.",
+        "Status/events provide evidence for the same job/generation/session.",
+        "Stopping the factory leaves zero factory-owned background processes.",
+        "If any stage is bypassed by direct helper calls, the test does not count as E2E."
+      ]
+    },
+    {
+      "id": "kilo-factory-050",
+      "title": "[E2E] Prove real unattended multi-cycle multi-role scheduling",
+      "type": "task",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "e2e",
+        "concurrency"
+      ],
+      "deps": [
+        "kilo-factory-039",
+        "kilo-factory-049"
+      ],
+      "description": "Replace the previous multicycle fixture/version smoke test with genuine autonomous cycles.",
+      "acceptance": [
+        "Fixture has a DAG requiring at least three complete ready->job->completion->integration->close cycles.",
+        "At least two independent jobs execute concurrently through two configured roles/seed sessions.",
+        "A dependent Bead becomes ready only after prerequisites close and is then dispatched automatically.",
+        "No job/session/generation/context crosses roles or tasks.",
+        "The test observes real main commits and Beads closures produced by the factory, not manually written state.",
+        "Factory remains usable and cleanly stoppable after all cycles."
+      ]
+    },
+    {
+      "id": "kilo-factory-051",
+      "title": "[SELFHOST] Perform actual kilo-factory dogfood on a real kilo-factory Bead",
+      "type": "task",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "selfhost",
+        "release"
+      ],
+      "deps": [
+        "kilo-factory-049",
+        "kilo-factory-050"
+      ],
+      "description": "Replace the previous selfhost init/version smoke test with genuine execution of kilo-factory work by kilo-factory itself.",
+      "acceptance": [
+        "Create/select a meaningful bounded kilo-factory Bead suitable for dogfood.",
+        "Run it through the normal shipped factory path with no self-host bypasses.",
+        "The job uses normal role selection, worktree, Kilo session, structured completion, verification, integration and Bead closure.",
+        "Resulting commit reaches kilo-factory main only through the normal green-main integration mechanism.",
+        "Record exact job/generation/session/commit evidence and clean shutdown.",
+        "A mere fixture creation, factory --version or factory init does not count."
+      ]
+    },
+    {
+      "id": "kilo-factory-052",
+      "title": "[FRESH] Prove true clean package install and first-run acceptance",
+      "type": "task",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "fresh-install",
+        "release"
+      ],
+      "deps": [
+        "kilo-factory-047",
+        "kilo-factory-049"
+      ],
+      "description": "Replace the current fresh test that reuses the source checkout/dist with a genuine clean package install.",
+      "acceptance": [
+        "Build an npm pack tarball from the release candidate.",
+        "Create a clean temp/home/project environment with no source checkout dist, old .kilo-factory state, sessions or node_modules.",
+        "Install only declared runtime prerequisites plus the package tarball using the documented installation path.",
+        "factory init/start/status/doctor/stop work from the installed package.",
+        "Kilo discovers the installed plugin through the documented mechanism.",
+        "A real one-job lifecycle completes in that clean environment."
+      ]
+    },
+    {
+      "id": "kilo-factory-053",
+      "title": "[RELEASE] Pass corrected production gate after implementation-level code review",
+      "type": "task",
+      "priority": 0,
+      "labels": [
+        "repair",
+        "release",
+        "gate"
+      ],
+      "deps": [
+        "kilo-factory-048",
+        "kilo-factory-050",
+        "kilo-factory-051",
+        "kilo-factory-052"
+      ],
+      "description": "This supersedes the previous bead 032 release conclusion. Re-run ship/no-ship evidence only after the repair DAG has implemented and exercised the actual runtime.",
+      "acceptance": [
+        "All repair Beads 034-052 and any discovered-from defects are honestly closed or genuinely externally blocked with evidence.",
+        "Shipped CLI exposes and executes the documented lifecycle commands.",
+        "Shipped Kilo plugin exposes working structured factory tools.",
+        "True black-box lifecycle, multi-cycle/multi-role, self-host and clean-package-install acceptance pass.",
+        "Crash/restart recovery and stop ownership are exercised against real processes/sessions.",
+        "Typecheck, build, non-env tests and CI configuration are green; required live tests have zero skips in the release run.",
+        "main is green and git status clean.",
+        "The gate explicitly verifies source/runtime behavior and does not infer success from prior bead closures or scaffold tests."
+      ]
+    },
+    {
+      "id": "kilo-factory-054",
+      "title": "[REPORT] Replace superseded night-shift report with corrected release evidence",
+      "type": "task",
+      "priority": 1,
+      "labels": [
+        "repair",
+        "report",
+        "release"
+      ],
+      "deps": [
+        "kilo-factory-053"
+      ],
+      "description": "After the corrected gate passes, rewrite NIGHT_SHIFT_REPORT.md so it no longer claims scaffold/component tests were full E2E/self-host evidence.",
+      "acceptance": [
+        "Report distinguishes the superseded false-positive gate from the corrected release proof.",
+        "Report includes exact commands and evidence for CLI/plugin lifecycle, true E2E, multi-cycle, self-host, recovery, clean install and shutdown.",
+        "Report lists defects found during repair and their regression tests.",
+        "Reported test counts are arithmetically consistent with actual executed files.",
+        "Owner verification commands are valid against the shipped CLI."
       ]
     }
   ]

@@ -2,7 +2,7 @@
 
 This repository builds `kilo-factory`, a universal unattended-work controller for the Kilo CLI.
 
-The core implementation wave is no longer the finish line. The current project objective is to turn the implemented core into a shippable production release proven through real Kilo execution, failure/recovery testing, clean installation, and self-hosting.
+The core implementation wave is no longer the finish line. A post-acceptance source review invalidated the previous production-ready conclusion: multiple shipped subsystems were still stubs or unwired, and several acceptance tests proved scaffolds rather than the autonomous runtime. The current objective is to complete repair beads 034-054 and pass corrected release gate kilo-factory-053.
 
 ## First actions in every coding session
 
@@ -15,7 +15,9 @@ The core implementation wave is no longer the finish line. The current project o
 
 ## Current phase
 
-- Productionization and release proof, not feature brainstorming.
+- Production repair after a false-positive release gate, not feature brainstorming.
+- Previous closures of 023/025/031/032/033 and the current NIGHT_SHIFT_REPORT.md are historical evidence only; they must not be used to claim readiness for the repair wave.
+- Repair beads 034-054 are authoritative, and kilo-factory-053 is the corrected ship gate.
 - A green unit suite proves only a local gate. It does not prove installability, runtime integration, recovery, or release readiness.
 - Prefer exercising the actual installed plugin, Kilo runtime, Beads, Git worktrees and SQLite state whenever the selected acceptance criteria are about system behavior.
 - Reuse the existing architecture unless evidence shows a production defect. Do not rewrite working subsystems merely to make them look cleaner.
@@ -57,6 +59,7 @@ The core implementation wave is no longer the finish line. The current project o
 - Add focused tests with the implementation.
 - Run the narrowest relevant test first, then repository gates required by the bead.
 - For production acceptance beads, run the real-system scenario required by the bead after deterministic tests are green.
+- Never count fixture setup, version/help/init smoke tests, direct SQLite state mutation, or isolated helper calls as E2E/multi-cycle/self-host evidence when the acceptance contract requires the shipped coordinator/plugin lifecycle.
 - Commit coherent work before moving to another bead.
 - Close a bead only when its acceptance criteria are proven with evidence. If a later integration/fault-injection gate is required, leave it open and document the blocker.
 - Use `bd create` with a `discovered-from` relationship for newly discovered scope instead of silently expanding the task.

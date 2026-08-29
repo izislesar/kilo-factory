@@ -10,6 +10,20 @@ That implementation is necessary but not sufficient for release.
 
 Production readiness requires evidence that those pieces operate together through the real installed plugin and real Kilo runtime, survive failures safely, install cleanly outside the developer's current state, and can operate on meaningful work without manual repair.
 
+## Post-acceptance code-review reset
+
+The production conclusion recorded before repair bead `kilo-factory-034` is superseded.
+
+A source-level review of the shipped `main` found that several previously closed acceptance beads tested component scaffolds rather than the autonomous runtime they claimed to prove. In particular, the shipped CLI lacked lifecycle commands, the Kilo plugin returned an empty tool surface, the coordinator did not create/prompt job sessions, the integration/recovery/observability layers were incomplete, and the so-called E2E/multi-cycle/self-host tests did not drive the shipped lifecycle end to end.
+
+Therefore:
+
+- historical closure of `kilo-factory-023/025/031/032/033` is not current ship evidence;
+- `NIGHT_SHIFT_REPORT.md` is historical until repair bead `kilo-factory-054` replaces it;
+- repair beads `kilo-factory-034` through `kilo-factory-054` are the authoritative remaining production path;
+- a test may count as E2E/multi-cycle/self-host only when it invokes the shipped runtime path and observes the required real side effects instead of directly mutating SQLite or merely testing fixture setup/version/init;
+- the corrected final gate is `kilo-factory-053`.
+
 ## Evidence hierarchy
 
 Evidence gets stronger in this order:
