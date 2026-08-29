@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { ReconcilerImpl, determineAction } from "../../src/recovery/reconciler"
 import { BoundedIdleHandler } from "../../src/continuation/handler"
-import { validateIntegration, IntegrationError } from "../../src/integration/pipeline"
+import { createIntegrationPipeline } from "../../src/integration/pipeline"
 import type { JobObservation } from "../../src/recovery/types"
 
 describe("adversarial recovery acceptance", () => {
@@ -47,9 +47,12 @@ describe("adversarial recovery acceptance", () => {
   })
 
   describe("interrupted verification cannot partially promote", () => {
-    test("integration validates before promotion", () => {
-      expect(() => validateIntegration("", "echo ok")).toThrow(IntegrationError)
-      expect(() => validateIntegration("branch", "")).toThrow(IntegrationError)
+    test("integration validates before promotion", async () => {
+      const pipeline = createIntegrationPipeline("main")
+      const r1 = await pipeline.integrate("", "echo ok")
+      expect(r1.ok).toBe(false)
+      const r2 = await pipeline.integrate("branch", "")
+      expect(r2.ok).toBe(false)
     })
   })
 

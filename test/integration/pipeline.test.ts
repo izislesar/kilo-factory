@@ -1,16 +1,24 @@
 import { describe, expect, test } from "bun:test"
-import { validateIntegration, IntegrationError } from "../../src/integration/pipeline"
+import { createIntegrationPipeline } from "../../src/integration/pipeline"
 
-describe("integration validation", () => {
-  test("rejects empty candidate branch", () => {
-    expect(() => validateIntegration("", "echo ok")).toThrow(IntegrationError)
+describe("integration pipeline", () => {
+  test("rejects empty candidate branch", async () => {
+    const pipeline = createIntegrationPipeline("main")
+    const result = await pipeline.integrate("", "echo ok")
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain("required")
   })
 
-  test("rejects empty validation command", () => {
-    expect(() => validateIntegration("feature-branch", "")).toThrow(IntegrationError)
+  test("rejects empty validation command", async () => {
+    const pipeline = createIntegrationPipeline("main")
+    const result = await pipeline.integrate("feature-branch", "")
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain("required")
   })
 
-  test("accepts valid inputs", () => {
-    expect(() => validateIntegration("feature-branch", "make test")).not.toThrow()
+  test("rejects non-existent branch", async () => {
+    const pipeline = createIntegrationPipeline("main")
+    const result = await pipeline.integrate("nonexistent-branch", "echo ok")
+    expect(result.ok).toBe(false)
   })
 })
