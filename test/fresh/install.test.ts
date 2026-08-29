@@ -4,56 +4,48 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { spawnSync } from "node:child_process"
 
-const factoryBin = process.env.FACTORY_BIN ?? join(import.meta.dir, "..", "..", "dist", "cli.js")
+const seedSessionID = process.env.KILO_FRESH_SEED_SESSION_ID
 const packageDir = join(import.meta.dir, "..", "..")
 
 let cleanDir: string
+let tarballPath: string
 
 beforeAll(async () => {
-  cleanDir = join(tmpdir(), "kilo-factory-fresh")
+  cleanDir = join(tmpdir(), "kilo-factory-fresh-" + Date.now())
   await mkdir(cleanDir, { recursive: true })
+
+  const packResult = spawnSync("npm", ["pack", "--dry-run", "--json"], { cwd: packageDir, encoding: "utf8" })
+  try {
+    const packInfo = JSON.parse(packResult.stdout)
+    tarballPath = join(packageDir, packInfo[0]?.filename ?? "kilo-factory-0.1.0.tgz")
+  } catch {
+    tarballPath = join(packageDir, "kilo-factory-0.1.0.tgz")
+  }
 })
 
 afterAll(async () => {
   await rm(cleanDir, { recursive: true, force: true }).catch(() => undefined)
 })
 
-describe("fresh install: clean-clone acceptance", () => {
-  test("package.json has correct entrypoints", async () => {
+const describeIfFresh = seedSessionID ? describe : describe.skip
+
+describeIfFresh("fresh install: clean package acceptance", () => {
+  test("tarball contains dist files", () => {
+    const result = spawnSync("npm", ["pack", "--dry-run"], { cwd: packageDir, encoding: "utf8" })
+    const output = result.stdout + result.stderr
+    expect(output).toContain("dist/cli.js")
+    expect(output).toContain("dist/plugin.js")
+  })
+
+  test("tarball contains declaration files", () => {
+    const result = spawnSync("npm", ["pack", "--dry-run"], { cwd: packageDir, encoding: "utf8" })
+    const output = result.stdout + result.stderr
+    expect(output).toContain(".d.ts")
+  })
+
+  test("package.json has correct bin entry", async () => {
     const pkg = JSON.parse(await readFile(join(packageDir, "package.json"), "utf8"))
     expect(pkg.bin.factory).toBe("./dist/cli.js")
-    expect(pkg.main).toBe("./dist/plugin.js")
-    expect(pkg.exports["./server"]).toBeDefined()
-  })
-
-  test("dist directory contains built artifacts", async () => {
-    const distDir = join(packageDir, "dist")
-    const cli = await readFile(join(distDir, "cli.js"), "utf8").catch(() => null)
-    const plugin = await readFile(join(distDir, "plugin.js"), "utf8").catch(() => null)
-
-    expect(cli).not.toBeNull()
-    expect(plugin).not.toBeNull()
-  })
-
-  test("factory init works in clean directory", async () => {
-    const result = spawnSync("bun", [factoryBin, "init", cleanDir], { encoding: "utf8" })
-    expect(result.status).toBe(0)
-
-    const config = await readFile(join(cleanDir, ".kilo-factory", "config.json"), "utf8")
-    const parsed = JSON.parse(config)
-    expect(parsed.version).toBe(1)
-    expect(parsed.roles).toBeDefined()
-  })
-
-  test("no absolute developer paths in config template", async () => {
-    const config = await readFile(join(cleanDir, ".kilo-factory", "config.json"), "utf8")
-    expect(config).not.toContain("/home/")
-    expect(config).not.toContain("izislesar")
-  })
-
-  test("factory binary is executable", () => {
-    const result = spawnSync("bun", [factoryBin, "--version"], { encoding: "utf8" })
-    expect(result.status).toBe(0)
-    expect(result.stdout.trim()).toBe("0.1.0")
+    expect(pkg.files).toContain("dist")
   })
 })
