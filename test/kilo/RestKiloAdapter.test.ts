@@ -73,7 +73,7 @@ describe("RestKiloAdapter", () => {
     expect(session).toEqual({ id: "ses_new", directory: "/tmp/worktree" })
     const body = JSON.parse(callLog[0]?.init?.body as string)
     expect(body.agent).toBe("code")
-    expect(body.model).toEqual({ providerID: "openai", modelID: "gpt-5.6-sol", variant: "xhigh" })
+    expect(body.model).toEqual({ providerID: "openai", id: "gpt-5.6-sol", variant: "xhigh" })
     expect(body.title).toBe("job title")
   })
 
@@ -112,8 +112,8 @@ describe("RestKiloAdapter", () => {
   test("subscribe deduplicates events by ID", async () => {
     const stream = new ReadableStream({
       start(controller) {
-        controller.enqueue(new TextEncoder().encode('data: {"id":"evt_1","payload":{"type":"session.idle","sessionID":"ses_1"}}\n\n'))
-        controller.enqueue(new TextEncoder().encode('data: {"id":"evt_1","payload":{"type":"session.idle","sessionID":"ses_1"}}\n\n'))
+        controller.enqueue(new TextEncoder().encode('data: {"id":"evt_1","payload":{"type":"session.idle","properties":{"sessionID":"ses_1"}}}\n\n'))
+        controller.enqueue(new TextEncoder().encode('data: {"id":"evt_1","payload":{"type":"session.idle","properties":{"sessionID":"ses_1"}}}\n\n'))
         controller.close()
       },
     })
@@ -134,7 +134,7 @@ describe("RestKiloAdapter", () => {
   test("subscribe ignores events for other sessions", async () => {
     const stream = new ReadableStream({
       start(controller) {
-        controller.enqueue(new TextEncoder().encode('data: {"id":"evt_1","payload":{"type":"session.idle","sessionID":"ses_2"}}\n\n'))
+        controller.enqueue(new TextEncoder().encode('data: {"id":"evt_1","payload":{"type":"session.idle","properties":{"sessionID":"ses_2"}}\n\n'))
         controller.close()
       },
     })

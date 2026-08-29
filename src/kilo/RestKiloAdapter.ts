@@ -79,7 +79,7 @@ export class RestKiloAdapter implements KiloAdapter {
       agent: seed.agent,
       model: {
         providerID: seed.model.providerID,
-        modelID: seed.model.modelID,
+        id: seed.model.modelID,
         variant: seed.model.variant,
       },
     }
@@ -177,14 +177,17 @@ export class RestKiloAdapter implements KiloAdapter {
         buffer = lines.pop() ?? ""
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue
-          const event = JSON.parse(line.slice(6)) as { id?: string; payload?: { type?: string; sessionID?: string; error?: unknown } }
-          if (!event.payload || event.payload.sessionID !== session.id) continue
+          const event = JSON.parse(line.slice(6)) as {
+            id?: string
+            payload?: { type?: string; properties?: { sessionID?: string }; error?: unknown }
+          }
+          if (!event.payload || event.payload.properties?.sessionID !== session.id) continue
           const eventID = event.id
           if (eventID && this.lastEventIDs.get(session.id) === eventID) continue
           if (eventID) this.lastEventIDs.set(session.id, eventID)
           handler({
             type: event.payload.type ?? "unknown",
-            sessionID: event.payload.sessionID,
+            sessionID: event.payload.properties?.sessionID,
             error: event.payload.error,
           })
         }
