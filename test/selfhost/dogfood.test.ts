@@ -10,7 +10,7 @@ const factoryBin = process.env.FACTORY_BIN ?? join(import.meta.dir, "..", "..", 
 let fixtureDir: string
 
 beforeAll(async () => {
-  fixtureDir = join(tmpdir(), "kilo-factory-selfhost")
+  fixtureDir = join(tmpdir(), "kilo-factory-selfhost-" + Date.now())
   await mkdir(fixtureDir, { recursive: true })
 })
 
@@ -33,11 +33,12 @@ describeIfSelfHost("self-host: dogfood kilo-factory on its own work", () => {
     expect(result.stdout).toContain("0.1.0")
   })
 
-  test("factory init works in fixture", async () => {
+  test("factory init works in fixture", () => {
     const result = spawnSync("bun", [factoryBin, "init", fixtureDir], { encoding: "utf8" })
     expect(result.status).toBe(0)
 
-    const config = await readFile(join(fixtureDir, ".kilo-factory", "config.json"), "utf8")
-    expect(config).toContain("version")
+    const configPath = join(fixtureDir, ".kilo-factory", "config.json")
+    const config = JSON.parse(require("fs").readFileSync(configPath, "utf8"))
+    expect(config.version).toBe(1)
   })
 })
