@@ -29,9 +29,7 @@ export async function initProject(directory: string, config?: Partial<ProjectCon
     const kiloDir = join(directory, ".kilo-factory")
     const configPath = join(kiloDir, "config.json")
 
-    if (existsSync(configPath)) {
-      return { ok: false, error: "Project already initialized", path: configPath }
-    }
+    const alreadyInitialized = existsSync(configPath)
 
     await mkdir(kiloDir, { recursive: true })
     const fullConfig: ProjectConfig = {
@@ -40,6 +38,13 @@ export async function initProject(directory: string, config?: Partial<ProjectCon
       version: 1,
     }
     await writeFile(configPath, JSON.stringify(fullConfig, null, 2))
+
+    if (!alreadyInitialized) {
+      const pluginResult = await enablePlugin(directory)
+      if (!pluginResult.ok && !pluginResult.error?.includes("already enabled")) {
+        return { ok: false, error: `Config created but plugin enable failed: ${pluginResult.error}`, path: configPath }
+      }
+    }
 
     return { ok: true, path: configPath }
   } catch (error) {
