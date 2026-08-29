@@ -4,9 +4,9 @@ import { initProject, loadProjectConfig } from "./init"
 import { SqliteStateStore } from "../state/sqlite"
 import { createKiloAdapter } from "../kilo/RestKiloAdapter"
 import { createWorktreeManager } from "../worktree/manager"
+import { createVerifier } from "../artifacts/verifier"
 import { createEventLogger } from "../observability/logger"
 import { createCoordinator } from "../coordinator/coordinator"
-import { createVerifier } from "../artifacts/verifier"
 import { createIntegrationPipeline } from "../integration/pipeline"
 import { createRecoveryReconciler } from "../recovery/reconciler"
 import { createProcessTracker, createServerLifecycle } from "../security/index"
@@ -89,7 +89,7 @@ export async function cmdStart(ctx: CommandContext): Promise<CommandOutput> {
   const coordinator = createCoordinator({
     beads: { ready: async () => [], show: async () => null, claim: async () => true, update: async () => true, close: async () => true },
     kilo, state, worktree, repoPath: ctx.configDir, worktreeRoot: ctx.worktreeRoot,
-    config, roles: roleScheduler, roleSeeds, seedSessionID: process.env.KILO_SEED_SESSION_ID,
+    config, roles: roleScheduler, verifier, roleSeeds, seedSessionID: process.env.KILO_SEED_SESSION_ID,
   })
 
   let running = true

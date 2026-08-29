@@ -4,6 +4,7 @@ import type { BeadsBackend, BeadsIssue } from "../../src/beads/types"
 import type { KiloAdapter, SeedConfiguration } from "../../src/kilo/types"
 import { SqliteStateStore } from "../../src/state/sqlite"
 import { createRoleScheduler } from "../../src/roles/scheduler"
+import { createVerifier } from "../../src/artifacts/verifier"
 import type { WorktreeManager, WorktreeInfo } from "../../src/worktree/types"
 import type { ProjectConfig } from "../../src/config/types"
 import { mkdtemp, rm } from "node:fs/promises"
@@ -97,6 +98,7 @@ describe("Coordinator", () => {
       worktreeRoot: "/wt",
       config: { version: 1, mainBranch: "main", roles: [{ name: "core" }] },
       roles: createRoleScheduler(),
+      verifier: createVerifier("/wt"),
     })
 
     process.env.KILO_SEED_SESSION_ID = "ses_seed"
@@ -128,6 +130,7 @@ describe("Coordinator", () => {
       worktreeRoot: "/wt",
       config: { version: 1, mainBranch: "main", roles: [{ name: "core" }] },
       roles: createRoleScheduler(),
+      verifier: createVerifier("/wt"),
     })
 
     process.env.KILO_SEED_SESSION_ID = "ses_seed"
@@ -156,6 +159,7 @@ describe("Coordinator", () => {
       worktreeRoot: "/wt",
       config: { version: 1, mainBranch: "main", roles: [{ name: "core" }] },
       roles: createRoleScheduler(),
+      verifier: createVerifier("/wt"),
       maxAttempts: 2,
     })
 

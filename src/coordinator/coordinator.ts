@@ -5,8 +5,10 @@ import type { JobRecord, NewJob } from "../state"
 import { assertTransition } from "./transitions"
 import type { WorktreeManager } from "../worktree/types"
 import { createContextBuilder, type JobEnvelope } from "../context/builder"
-import { validateCompletion } from "../plugin/contract"
+import { createVerifier } from "../artifacts/verifier"
+import type { Verifier } from "../artifacts/verifier"
 import type { ProjectConfig } from "../config/types"
+import type { CompletionPayload } from "../plugin/types"
 import type { RoleScheduler } from "../roles/scheduler"
 
 export type CoordinatorOptions = {
@@ -18,6 +20,7 @@ export type CoordinatorOptions = {
   worktreeRoot: string
   config: ProjectConfig
   roles: RoleScheduler
+  verifier: Verifier
   maxAttempts?: number
   seedSessionID?: string
   roleSeeds?: Map<string, { sessionID: string; model: SeedConfiguration["model"] }>
@@ -37,6 +40,7 @@ export class Coordinator {
   private worktreeRoot: string
   private config: ProjectConfig
   private roles: RoleScheduler
+  private verifier: Verifier
   private maxAttempts: number
   private seedSessionID?: string
   private roleSeeds?: Map<string, { sessionID: string; model: SeedConfiguration["model"] }>
@@ -53,6 +57,7 @@ export class Coordinator {
     this.worktreeRoot = options.worktreeRoot
     this.config = options.config
     this.roles = options.roles
+    this.verifier = options.verifier
     this.maxAttempts = options.maxAttempts ?? 3
     this.seedSessionID = options.seedSessionID
     this.roleSeeds = options.roleSeeds
@@ -227,6 +232,27 @@ export class Coordinator {
   private async verifyAndIntegrate(job: JobRecord): Promise<void> {
     try {
       await this.state.updateJob(job.jobId, { state: "REVIEWING" }, { expectedGeneration: job.generation })
+
+      const worktreeInfo = await this.worktree.inspect(job.worktree)
+      const currentGeneration = job.generation
+
+      const completion: CompletionPayload = {
+        jobId: job.jobId,
+        generation: job.generation,
+        summary: "Completion from monitor",
+        checks: [],
+        risks: [],
+        baseSha: job.baseSha,
+        headSha: worktreeInfo?.headSha ?? "",
+        dirty: worktreeInfo?.status === "dirty",
+      }
+
+      const verification = await this.verifier.verify(job, completion, worktreeInfo, currentGeneration)
+      if (!verification.ok) {
+        await this.quarantine(job, `Verification failed: ${verification.errors.join("; ")}`)
+        return
+      }
+
       await this.state.updateJob(job.jobId, { state: "INTEGRATING" }, { expectedGeneration: job.generation })
       await this.state.updateJob(job.jobId, { state: "VALIDATING" }, { expectedGeneration: job.generation })
 

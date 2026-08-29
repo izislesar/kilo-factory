@@ -31,12 +31,13 @@ describe("factory init", () => {
     expect(config?.mainBranch).toBe("main")
   })
 
-  test("refuses to overwrite existing config", async () => {
+  test("re-init is idempotent and preserves config", async () => {
     await initProject(tempDir)
     const second = await initProject(tempDir)
 
-    expect(second.ok).toBe(false)
-    expect(second.error).toContain("already initialized")
+    expect(second.ok).toBe(true)
+    const config = await loadProjectConfig(tempDir)
+    expect(config?.version).toBe(1)
   })
 
   test("accepts custom config overrides", async () => {
