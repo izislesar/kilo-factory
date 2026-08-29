@@ -38,4 +38,11 @@ describe("factory CLI", () => {
     expect(output.stdout).toEqual([])
     expect(output.stderr.join("")).toContain("Unknown command: unknown")
   })
+
+  test("init command is recognized", () => {
+    const output = capture()
+    const exitCode = runCli(["init"], output.io)
+
+    expect(exitCode).toBe(0)
+  })
 })
