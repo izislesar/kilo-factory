@@ -90,7 +90,28 @@ export class SqliteStateStore {
         value INTEGER NOT NULL
       )
     `)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS control (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `)
+    this.db.exec(
+      `INSERT OR IGNORE INTO control (key, value, updated_at) VALUES ('mode', 'running', '${new Date().toISOString()}')`,
+    )
     this.migrate()
+  }
+
+  async getControl(key: string): Promise<string | null> {
+    const row = this.db.query<{ value: string }, [string]>("SELECT value FROM control WHERE key = ?").get(key)
+    return row?.value ?? null
+  }
+
+  async setControl(key: string, value: string): Promise<void> {
+    this.db.query(
+      `INSERT OR REPLACE INTO control (key, value, updated_at) VALUES (?, ?, ?)`,
+    ).run(key, value, new Date().toISOString())
   }
 
   private migrate(): void {

@@ -68,6 +68,10 @@ export class Coordinator {
   }
 
   async reconcile(): Promise<void> {
+    const mode = await this.state.getControl("mode")
+    if (mode === "paused") {
+      return
+    }
     const readyIssues = await this.beads.ready({ excludeEpics: true })
     for (const issue of readyIssues) {
       await this.reconcileIssue(issue)

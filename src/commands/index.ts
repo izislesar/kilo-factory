@@ -206,13 +206,15 @@ export async function cmdInspect(ctx: CommandContext, jobId?: string): Promise<C
 export async function cmdPause(ctx: CommandContext): Promise<CommandOutput> {
   const state = new SqliteStateStore(ctx.statePath)
   await state.init()
+  await state.setControl("mode", "paused")
   await state.close()
-  return { ok: true, exitCode: 0, lines: ["Factory paused (no new jobs will be scheduled)"], errors: [] }
+  return { ok: true, exitCode: 0, lines: ["Factory paused - no new jobs will be scheduled"], errors: [] }
 }
 
 export async function cmdResume(ctx: CommandContext): Promise<CommandOutput> {
   const state = new SqliteStateStore(ctx.statePath)
   await state.init()
+  await state.setControl("mode", "running")
   await state.close()
   return { ok: true, exitCode: 0, lines: ["Factory resumed"], errors: [] }
 }
@@ -223,6 +225,7 @@ export async function cmdStop(ctx: CommandContext): Promise<CommandOutput> {
 
   const state = new SqliteStateStore(ctx.statePath)
   await state.init()
+  await state.setControl("mode", "stopped")
 
   const beads = await state.listJobsByBead("__all__").catch(() => [] as Awaited<ReturnType<typeof state.listJobsByBead>>)
   let stopped = 0
@@ -234,7 +237,7 @@ export async function cmdStop(ctx: CommandContext): Promise<CommandOutput> {
   }
   await state.close()
 
-  lines.push(`Factory stopped. ${stopped} active job(s) quarantined.`)
+  lines.push(`Factory stopped. ${stopped} active job(s) quarantined. Mode set to stopped.`)
   return { ok: true, exitCode: 0, lines, errors }
 }
 
@@ -249,6 +252,12 @@ export async function cmdDoctor(ctx: CommandContext): Promise<CommandOutput> {
     lines.push(`Config: OK (${config.roles.length} roles)`)
   }
 
+  const state = new SqliteStateStore(ctx.statePath)
+  await state.init()
+  const mode = await state.getControl("mode")
+  lines.push(`Mode: ${mode ?? "unknown"}`)
+  await state.close()
+
   const adapter = createKiloAdapter({ url: ctx.kiloUrl, directory: ctx.configDir })
   const healthy = await adapter.health()
   await adapter.close()
@@ -256,15 +265,6 @@ export async function cmdDoctor(ctx: CommandContext): Promise<CommandOutput> {
     lines.push(`Kilo server: OK (${ctx.kiloUrl})`)
   } else {
     errors.push(`Kilo server: UNREACHABLE (${ctx.kiloUrl})`)
-  }
-
-  try {
-    const state = new SqliteStateStore(ctx.statePath)
-    await state.init()
-    await state.close()
-    lines.push("State store: OK")
-  } catch {
-    errors.push("State store: ERROR")
   }
 
   return { ok: errors.length === 0, exitCode: errors.length > 0 ? 1 : 0, lines, errors }
