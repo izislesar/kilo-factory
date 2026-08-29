@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeAll } from "bun:test"
+import { describe, expect, test, beforeAll, afterAll } from "bun:test"
 import { RestKiloAdapter } from "../../src/kilo/RestKiloAdapter"
 import type { SeedConfiguration, KiloSessionEvent } from "../../src/kilo/types"
 import { mkdtemp, mkdir, rm } from "node:fs/promises"
@@ -78,13 +78,21 @@ beforeAll(async () => {
 
 async function stopServerContract() {
   if (serverProcess) {
-    serverProcess.kill("SIGTERM")
-    await serverProcess.exited.catch(() => undefined)
+    try {
+      serverProcess.kill("SIGKILL")
+    } catch {
+      // already exited
+    }
+    await serverProcess.exited.catch(() => undefined).catch(() => undefined)
   }
   if (tempRoot) await rm(tempRoot, { recursive: true, force: true }).catch(() => undefined)
 }
 
 describeIfServer("RestKiloAdapter contract", () => {
+  afterAll(async () => {
+    await stopServerContract()
+  })
+
   test("connects to a real local Kilo server", async () => {
     const adapter = new RestKiloAdapter({ url: serverUrl, directory: repository, username: "kilo", password })
     expect(await adapter.health()).toBe(true)
