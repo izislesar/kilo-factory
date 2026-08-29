@@ -10,6 +10,7 @@ import { createVerifier } from "../artifacts/verifier"
 import { createIntegrationPipeline } from "../integration/pipeline"
 import { createRecoveryReconciler } from "../recovery/reconciler"
 import { createProcessTracker, createServerLifecycle } from "../security/index"
+import { createRoleScheduler } from "../roles/scheduler"
 
 export type CommandContext = {
   configDir: string
@@ -78,10 +79,17 @@ export async function cmdStart(ctx: CommandContext): Promise<CommandOutput> {
     kilo, worktree, tracker, config.roles.length,
   )
 
+  const roleScheduler = createRoleScheduler()
+  const roleSeeds = new Map<string, { sessionID: string; model: { providerID: string; modelID: string } }>()
+  for (const role of config.roles) {
+    roleScheduler.addRoleSeed(role.name, process.env.KILO_SEED_SESSION_ID ?? "ses_seed", { providerID: "kilo", modelID: "kilo-7.5" })
+    roleSeeds.set(role.name, { sessionID: process.env.KILO_SEED_SESSION_ID ?? "ses_seed", model: { providerID: "kilo", modelID: "kilo-7.5" } })
+  }
+
   const coordinator = createCoordinator({
     beads: { ready: async () => [], show: async () => null, claim: async () => true, update: async () => true, close: async () => true },
     kilo, state, worktree, repoPath: ctx.configDir, worktreeRoot: ctx.worktreeRoot,
-    config, seedSessionID: process.env.KILO_SEED_SESSION_ID,
+    config, roles: roleScheduler, roleSeeds, seedSessionID: process.env.KILO_SEED_SESSION_ID,
   })
 
   let running = true

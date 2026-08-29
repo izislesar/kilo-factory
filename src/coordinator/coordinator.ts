@@ -7,6 +7,7 @@ import type { WorktreeManager } from "../worktree/types"
 import { createContextBuilder, type JobEnvelope } from "../context/builder"
 import { validateCompletion } from "../plugin/contract"
 import type { ProjectConfig } from "../config/types"
+import type { RoleScheduler } from "../roles/scheduler"
 
 export type CoordinatorOptions = {
   beads: BeadsBackend
@@ -16,8 +17,10 @@ export type CoordinatorOptions = {
   repoPath: string
   worktreeRoot: string
   config: ProjectConfig
+  roles: RoleScheduler
   maxAttempts?: number
   seedSessionID?: string
+  roleSeeds?: Map<string, { sessionID: string; model: SeedConfiguration["model"] }>
 }
 
 type ActiveSubscription = {
@@ -33,9 +36,13 @@ export class Coordinator {
   private repoPath: string
   private worktreeRoot: string
   private config: ProjectConfig
+  private roles: RoleScheduler
   private maxAttempts: number
   private seedSessionID?: string
+  private roleSeeds?: Map<string, { sessionID: string; model: SeedConfiguration["model"] }>
   private subscriptions = new Map<string, ActiveSubscription>()
+  private roleCapacity = new Map<string, number>()
+  private maxConcurrentPerRole = 2
 
   constructor(options: CoordinatorOptions) {
     this.beads = options.beads
@@ -45,8 +52,10 @@ export class Coordinator {
     this.repoPath = options.repoPath
     this.worktreeRoot = options.worktreeRoot
     this.config = options.config
+    this.roles = options.roles
     this.maxAttempts = options.maxAttempts ?? 3
     this.seedSessionID = options.seedSessionID
+    this.roleSeeds = options.roleSeeds
   }
 
   async reconcile(): Promise<void> {
@@ -82,7 +91,7 @@ export class Coordinator {
 
   private async assign(issue: BeadsIssue): Promise<void> {
     const baseSha = await this.getBaseSha()
-    const seed = await this.getSeedConfiguration()
+    const role = this.roles.assignRole(issue.id, this.config)
     const generation = await this.nextGeneration(issue.id)
     const worktree = await this.worktree.create(baseSha, issue.id, generation)
 
@@ -90,7 +99,7 @@ export class Coordinator {
       jobId: `${issue.id}:${generation}`,
       bead: issue.id,
       generation,
-      role: issue.title,
+      role,
       baseSha,
       worktree: worktree.path,
       state: "LEASED",

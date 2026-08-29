@@ -3,6 +3,7 @@ import { Coordinator } from "../../src/coordinator/coordinator"
 import type { BeadsBackend, BeadsIssue } from "../../src/beads/types"
 import type { KiloAdapter, SeedConfiguration } from "../../src/kilo/types"
 import { SqliteStateStore } from "../../src/state/sqlite"
+import { createRoleScheduler } from "../../src/roles/scheduler"
 import type { WorktreeManager, WorktreeInfo } from "../../src/worktree/types"
 import type { ProjectConfig } from "../../src/config/types"
 import { mkdtemp, rm } from "node:fs/promises"
@@ -95,6 +96,7 @@ describe("Coordinator", () => {
       repoPath: "/repo",
       worktreeRoot: "/wt",
       config: { version: 1, mainBranch: "main", roles: [{ name: "core" }] },
+      roles: createRoleScheduler(),
     })
 
     process.env.KILO_SEED_SESSION_ID = "ses_seed"
@@ -125,6 +127,7 @@ describe("Coordinator", () => {
       repoPath: "/repo",
       worktreeRoot: "/wt",
       config: { version: 1, mainBranch: "main", roles: [{ name: "core" }] },
+      roles: createRoleScheduler(),
     })
 
     process.env.KILO_SEED_SESSION_ID = "ses_seed"
@@ -152,6 +155,7 @@ describe("Coordinator", () => {
       repoPath: "/repo",
       worktreeRoot: "/wt",
       config: { version: 1, mainBranch: "main", roles: [{ name: "core" }] },
+      roles: createRoleScheduler(),
       maxAttempts: 2,
     })
 

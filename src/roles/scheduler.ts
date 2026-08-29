@@ -10,6 +10,7 @@ export type RoleAssignment = {
 export type RoleScheduler = {
   assignRole(beadId: string, config: ProjectConfig): string
   getSeedForRole(role: string): SeedConfiguration | null
+  addRoleSeed(role: string, sessionID: string, model: SeedConfiguration["model"]): void
 }
 
 export class ConfiguredRoleScheduler implements RoleScheduler {
