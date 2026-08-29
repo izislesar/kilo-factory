@@ -25,7 +25,7 @@ Commands:
   --version     Show version
 `
 
-async function runCliAsync(args: string[], io: CliIo): Promise<number> {
+export async function runCliAsync(args: string[], io: CliIo): Promise<number> {
   const [command, ...rest] = args
 
   if (!command || command === "--help" || command === "-h" || command === "help") {
@@ -83,31 +83,18 @@ async function runCliAsync(args: string[], io: CliIo): Promise<number> {
   return result.exitCode
 }
 
-export function runCli(args: string[], io: CliIo): number {
-  let exitCode = 2
-  let resolved = false
-  runCliAsync(args, io).then((code) => {
-    exitCode = code
-    resolved = true
-  }).catch((error) => {
-    io.stderr(`Fatal: ${String(error)}\n`)
-    resolved = true
-  })
-  const start = Date.now()
-  while (!resolved && Date.now() - start < 30_000) {
-    Bun.sleepSync(10)
-  }
-  return exitCode
-}
-
 if (import.meta.main) {
-  const code = runCli(process.argv.slice(2), {
+  runCliAsync(process.argv.slice(2), {
     stdout(text) {
       process.stdout.write(text)
     },
     stderr(text) {
       process.stderr.write(text)
     },
+  }).then((code) => {
+    process.exitCode = code
+  }).catch((error) => {
+    process.stderr.write(`Fatal: ${String(error)}\n`)
+    process.exitCode = 1
   })
-  process.exitCode = code
 }
