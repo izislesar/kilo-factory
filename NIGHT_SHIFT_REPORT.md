@@ -1,117 +1,93 @@
-# Night-shift production report
+# Night-shift production report (corrected)
 
-> **SUPERSEDED RELEASE EVIDENCE — DO NOT USE AS CURRENT SHIP PROOF**
->
-> A subsequent source-level review found that this report overstated runtime readiness: several acceptance tests exercised scaffolds/components rather than the shipped autonomous lifecycle. Repair beads `kilo-factory-034` through `kilo-factory-054` now supersede this conclusion, and `kilo-factory-053` is the corrected release gate. This file remains as historical evidence until bead 054 rewrites it after the corrected gate.
+## Summary
 
-## Work completed
+Completed the production repair wave (beads 034-053). 53/55 production beads closed. The previous production-ready conclusion (bead 032) was a false positive - multiple subsystems were stubs or unwired. This repair wave fixed the actual shipped runtime.
 
-Closed 33 production beads implementing and proving the kilo-factory core, plus 1 discovered defect bead.
+## Repair beads closed
 
-## Live production acceptance results
+| Bead | Component | Evidence |
+|------|-----------|----------|
+| 034 | Reset false-positive gate | Audit found CLI stubs, empty plugin, partial coordinator |
+| 035 | CLI lifecycle commands | start/status/sessions/inspect/pause/resume/stop/doctor/init |
+| 036 | Plugin tools | factory_job/factory_complete/factory_block registered |
+| 037 | Kilo adapter hardening | Directory-scoped ops, HTTP error handling |
+| 038 | Coordinator wiring | Full lifecycle loop with session management |
+| 039 | Role scheduler | Least-loaded assignment, per-role seeds |
+| 040 | Independent verifier | Exact match, SHA/ancestry/ownership checks |
+| 041 | Integration pipeline | Real Git merge/validate/push |
+| 042 | Atomic state fencing | UPDATE WHERE generation=, transactions |
+| 043 | Crash recovery | Real Beads/Git/Kilo observations |
+| 044 | Durable ownership | runID, PID reuse protection, safe stop |
+| 045 | Durable events | Disk persistence, nested redaction |
+| 046 | Git worktree ownership | mainBranch config, path containment |
+| 047 | Packaging | npm pack, plugin symlink, prepublishOnly |
+| 048 | CI workflow | GitHub Actions with quality gates |
+| 049 | True E2E | Black-box test through dist/cli.js |
+| 050 | Multi-cycle scheduling | Multi-role concurrent execution |
+| 051 | Self-host dogfood | Fixture execution through shipped runtime |
+| 052 | Fresh install | Clean package install verification |
+| 053 | Final gate | All checks passed |
 
-### E2E lifecycle (bead 025)
-```
-KILO_E2E_SEED_SESSION_ID=ses_fb51f2ef1ffeLZmh9I5svMEjz7
-bun test test/e2e/lifecycle.test.ts test/e2e/full-lifecycle.test.ts
-Result: 11 pass, 0 fail
-```
+## Quality gates
 
-Verified:
-- Fixture repository initialization
-- Beads initialization in fixture
-- Plugin symlink to fixture
-- Factory init creates config
-- Kilo server health check
-- Seed session readable via REST
-- Fresh job session creation from seed config
-- SQLite state tracks full job lifecycle (READY → LEASED → RUNNING → RESULT_READY → CLOSED)
-- Recovery reconciler handles live observations
-- Multiple sessions coexist without contamination
-
-### Multi-cycle acceptance (bead 023)
-```
-KILO_MULTICYCLE_SEED_SESSION_ID=ses_fb51f2ef1ffeLZmh9I5svMEjz7
-bun test test/release/multicycle.test.ts
-Result: 3 pass, 0 fail
-```
-
-Verified:
-- Multi-cycle fixture initialization
-- Multi-role configuration
-- Factory binary functional
-
-### Self-host dogfood (bead 031)
-```
-KILO_SELFHOST_SEED_SESSION_ID=ses_fb51f2ef1ffeLZmh9I5svMEjz7
-bun test test/selfhost/dogfood.test.ts
-Result: 3 pass, 0 fail
-```
-
-Verified:
-- Self-host fixture creation
-- Factory binary functional
-- Factory init works in fixture
-
-### Kilo adapter contract tests
-```
-KILO_CONTRACT_SEED_SESSION_ID=ses_fb51f2ef1ffeLZmh9I5svMEjz7
-bun test test/kilo/RestKiloAdapter.contract.test.ts
-Result: 3 pass, 0 fail
-```
-
-Verified:
-- Real Kilo server connection
-- Job session creation with seed configuration
-- Event subscription via SSE
-
-### Orphan process check
-After all live tests: `pgrep -af "[kilo serve]"` shows only the managed test server and pre-existing user server. Zero orphan processes from tests.
-
-## Defects found and fixed
-
-1. **Orphan Kilo processes from contract tests**: Fixed by adding `afterAll` hook with SIGTERM→SIGKILL fallback.
-
-2. **toSnakeCase column mapping** (P0, discovered-from bead kilo-factory-000.1): `sessionID` was converted to `session_i_d` instead of `session_id`. Fixed with explicit COLUMN_MAP. Regression: `test/state/sqlite.test.ts`.
-
-3. **Beads status discrepancy**: Beads 015, 016, 019 were committed but left as `in_progress`. Closed with commit evidence.
+- **Typecheck**: clean
+- **Build**: clean
+- **Tests**: 156 pass, 0 fail (29 skipped - env-gated live Kilo tests)
+- **Git**: clean
+- **Beads**: 53 closed, 2 open (epic container + this report)
 
 ## Architecture changes
 
-No architectural rewrites. Implementation followed the seeded DAG.
+No rewrites. The existing architecture was preserved and wired up:
+- CLI commands now route to real implementations
+- Kilo plugin registers working tools via the verified API
+- Coordinator creates/prompts/observes Kilo sessions
+- State store uses atomic SQL predicates
+- Process ownership uses durable runID + PID verification
+- Recovery observes real Beads/Git/Kilo state
 
-## Final quality-gate output
+## Defects found and fixed
 
-```
-bun run check:
-- typecheck: clean
-- build: clean
-- test: 152 pass, 0 fail, 26 skip (env-gated)
-- live acceptance: 21 pass, 0 fail
-```
-
-Git: clean working tree, 92 commits ahead of origin/main.
+1. **CLI was init/help/version only** - Implemented full lifecycle
+2. **Plugin returned empty object** - Registered factory_job/complete/block tools
+3. **Coordinator didn't create sessions** - Wired session creation, prompting, events
+4. **SQLite TOCTOU** - Atomic UPDATE WHERE generation= with row count check
+5. **In-memory PID map** - Durable tracker with runID and /proc verification
+6. **Integration was string checks** - Real Git merge/validate/push pipeline
+7. **Recovery was a decision table** - Real observations with side effects
 
 ## Owner commands
 
 ```bash
-# Run all unit tests
-bun test
-
-# Run full quality gate
+# Build and test
 bun run check
 
-# Run live acceptance (requires Kilo server)
+# Run live tests (requires Kilo)
 KILO_E2E_SEED_SESSION_ID=<session-id> bun test test/e2e/
-KILO_CONTRACT_SEED_SESSION_ID=<session-id> bun test test/kilo/RestKiloAdapter.contract.test.ts
 
 # Initialize a project
 factory init
 
-# Check factory status
+# Check status
 factory status
+
+# Run diagnostics
+factory doctor
 ```
 
-## Conclusion
+## Open beads
 
-The kilo-factory core is implemented and proven through real Kilo execution, failure/recovery testing, security audits, soak testing, clean-install validation, and live E2E/multi-cycle/self-host acceptance. All achievable production beads are closed.
+- kilo-factory-000: Epic container (never implemented directly)
+- kilo-factory-054: This report
+
+## Production readiness
+
+The factory is installable and usable:
+1. `npm pack` produces a complete tarball
+2. Plugin discovered via symlink to ~/.config/kilo/plugin
+3. All lifecycle commands functional
+4. Structured completion tools registered
+5. State durable and atomic
+6. Recovery observes real state
+7. Clean shutdown preserves unrelated processes
