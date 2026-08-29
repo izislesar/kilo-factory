@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "kilo_factory",
+  "project_id": "5a691843-ec5d-4426-981c-2d965e3a43d5"
+}
