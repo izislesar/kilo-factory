@@ -155,8 +155,23 @@ export class SqliteStateStore {
   }
 }
 
+const COLUMN_MAP: Record<string, string> = {
+  jobId: "job_id",
+  bead: "bead",
+  generation: "generation",
+  role: "role",
+  baseSha: "base_sha",
+  worktree: "worktree",
+  state: "state",
+  sessionID: "session_id",
+  attempts: "attempts",
+  failureReason: "failure_reason",
+  createdAt: "created_at",
+  updatedAt: "updated_at",
+}
+
 function toSnakeCase(key: string): string {
-  return key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+  return COLUMN_MAP[key] ?? key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
 }
 
 function fromRow(row: Record<string, unknown>): JobRecord {
