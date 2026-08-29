@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { createRecoveryReconciler } from "../../src/recovery/reconciler"
+import { SqliteStateStore } from "../../src/state/sqlite"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { BoundedIdleHandler } from "../../src/continuation/handler"
 import { createIntegrationPipeline } from "../../src/integration/pipeline"
 import type { JobRecord } from "../../src/state"
@@ -53,7 +56,7 @@ const makeWorktree = (info: WorktreeInfo | null): WorktreeManager => ({
 describe("adversarial recovery acceptance", () => {
   describe("worker/session death cannot silently complete", () => {
     test("missing worktree retries within budget", async () => {
-      const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), makeWorktree(null), {
+      const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), new SqliteStateStore(join(tmpdir(), `kilo-rec-${Date.now()}.db`)), makeWorktree(null), {
         registerServer: () => {}, registerSession: () => {},
         isOwned: () => false, ownedProcesses: () => [], unregister: () => {},
       })
@@ -64,7 +67,7 @@ describe("adversarial recovery acceptance", () => {
 
     test("session death during dirty work enters recovery", async () => {
       const worktree: WorktreeInfo = { path: "/wt/test", branch: "factory/test/1", status: "dirty", uniqueCommitCount: 0, headSha: "abc" }
-      const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), makeWorktree(worktree), {
+      const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), new SqliteStateStore(join(tmpdir(), `kilo-rec-${Date.now()}.db`)), makeWorktree(worktree), {
         registerServer: () => {}, registerSession: () => {},
         isOwned: () => true, ownedProcesses: () => [], unregister: () => {},
       })

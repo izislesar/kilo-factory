@@ -1,6 +1,7 @@
 import type { JobRecord } from "../state"
-import type { BeadsBackend, BeadsIssue } from "../beads/types"
+import type { BeadsBackend } from "../beads/types"
 import type { KiloAdapter } from "../kilo/types"
+import type { SqliteStateStore } from "../state/sqlite"
 import type { WorktreeManager } from "../worktree/types"
 import type { ProcessTracker } from "../security/types"
 
@@ -24,11 +25,13 @@ export type RecoveryResult = {
 
 export type RecoveryReconciler = {
   reconcile(jobs: JobRecord[]): Promise<RecoveryResult[]>
+  reconcileAndAct(jobs: JobRecord[]): Promise<RecoveryResult[]>
 }
 
 export class ProductionRecoveryReconciler implements RecoveryReconciler {
   private beads: BeadsBackend
   private kilo: KiloAdapter
+  private state: SqliteStateStore
   private worktree: WorktreeManager
   private tracker: ProcessTracker
   private maxAttempts: number
@@ -36,12 +39,14 @@ export class ProductionRecoveryReconciler implements RecoveryReconciler {
   constructor(
     beads: BeadsBackend,
     kilo: KiloAdapter,
+    state: SqliteStateStore,
     worktree: WorktreeManager,
     tracker: ProcessTracker,
     maxAttempts = 3,
   ) {
     this.beads = beads
     this.kilo = kilo
+    this.state = state
     this.worktree = worktree
     this.tracker = tracker
     this.maxAttempts = maxAttempts
@@ -57,6 +62,40 @@ export class ProductionRecoveryReconciler implements RecoveryReconciler {
       const observation = await this.observe(job)
       const decision = this.decide(observation)
       results.push({ jobId: job.jobId, action: decision.action, reason: decision.reason })
+    }
+    return results
+  }
+
+  async reconcileAndAct(jobs: JobRecord[]): Promise<RecoveryResult[]> {
+    const results: RecoveryResult[] = []
+    for (const job of jobs) {
+      if (job.state === "CLOSED" || job.state === "QUARANTINED") {
+        results.push({ jobId: job.jobId, action: "noop", reason: "Already terminal" })
+        continue
+      }
+      const observation = await this.observe(job)
+      const decision = this.decide(observation)
+      const result = { jobId: job.jobId, action: decision.action, reason: decision.reason }
+
+      try {
+        switch (decision.action) {
+          case "retry":
+            await this.state.updateJob(job.jobId, { state: "RETRY_WAIT", attempts: job.attempts + 1 }, { expectedGeneration: job.generation })
+            break
+          case "recover":
+            break
+          case "quarantine":
+            await this.state.updateJob(job.jobId, { state: "QUARANTINED", failureReason: decision.reason }, { expectedGeneration: job.generation })
+            break
+          case "integrate":
+            await this.state.updateJob(job.jobId, { state: "RESULT_READY" }, { expectedGeneration: job.generation })
+            break
+        }
+      } catch (error) {
+        result.reason += ` (action failed: ${String(error)})`
+      }
+
+      results.push(result)
     }
     return results
   }
@@ -129,9 +168,10 @@ export class ProductionRecoveryReconciler implements RecoveryReconciler {
 export function createRecoveryReconciler(
   beads: BeadsBackend,
   kilo: KiloAdapter,
+  state: SqliteStateStore,
   worktree: WorktreeManager,
   tracker: ProcessTracker,
   maxAttempts?: number,
 ): RecoveryReconciler {
-  return new ProductionRecoveryReconciler(beads, kilo, worktree, tracker, maxAttempts)
+  return new ProductionRecoveryReconciler(beads, kilo, state, worktree, tracker, maxAttempts)
 }

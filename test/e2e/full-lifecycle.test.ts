@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeAll, afterAll } from "bun:test"
 import { RestKiloAdapter } from "../../src/kilo/RestKiloAdapter"
-import { SqliteStateStore } from "../../src/state/sqlite"
 import { createRecoveryReconciler } from "../../src/recovery/reconciler"
+import { SqliteStateStore } from "../../src/state/sqlite"
 import { mkdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -90,9 +90,11 @@ describeIfLifecycle("Full lifecycle: Beads -> coordinator -> session -> worktree
     const reconciler = createRecoveryReconciler(
       { ready: async () => [], show: async () => null, claim: async () => true, update: async () => true, close: async () => true },
       { health: async () => true, listSessions: async () => [], getSeedConfiguration: async () => ({ agent: "code", model: { providerID: "kilo", modelID: "kilo-7.5" } }), createJobSession: async () => ({ id: "ses_new", directory: "/wt" }), promptAsync: async () => {}, abort: async () => {}, delete: async () => {}, subscribe: async () => async () => {}, close: async () => {} },
+      new SqliteStateStore(join(import.meta.dir, "..", "..", "test.db")),
       { create: async () => ({ path: "/wt", branch: "factory/t/1", status: "clean", uniqueCommitCount: 1, headSha: "a" }), inspect: async () => null, isOwned: () => true, remove: async () => true, listOwned: async () => [], branchFor: (jobId: string, gen: number) => `factory/${jobId}/${gen}` },
       { registerServer: () => {}, registerSession: () => {}, isOwned: () => true, ownedProcesses: () => [], unregister: () => {} },
     )
+    await reconciler.reconcileAndAct([])
 
     const jobs = [
       { jobId: "a:1", bead: "a", generation: 1, role: "core", baseSha: "base", worktree: "/wt/a", state: "RESULT_READY" as const, sessionID: "ses_1", attempts: 0, createdAt: "", updatedAt: "" },

@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { createRecoveryReconciler } from "../../src/recovery/reconciler"
+import { SqliteStateStore } from "../../src/state/sqlite"
+import { join } from "node:path"
+import { tmpdir } from "node:os"
 import { ProcessTrackerImpl } from "../../src/security/processTracker"
 import { BoundedIdleHandler } from "../../src/continuation/handler"
 import { validateCompletion, ContractError } from "../../src/plugin/contract"
@@ -56,7 +59,7 @@ describe("fault-injection matrix", () => {
   describe("worker/session death cannot silently complete", () => {
     test("missing worktree retries within budget", async () => {
       const tracker = new ProcessTrackerImpl()
-      const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), makeWorktree(null), tracker)
+      const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), new SqliteStateStore(join(tmpdir(), `kilo-rec-${Date.now()}.db`)), makeWorktree(null), tracker)
       const job = makeJob("test:1", "LEASED")
       const results = await reconciler.reconcile([job])
       expect(results[0].action).toBe("retry")

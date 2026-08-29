@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { ProductionRecoveryReconciler, createRecoveryReconciler } from "../../src/recovery/reconciler"
+import { SqliteStateStore } from "../../src/state/sqlite"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import type { JobObservation } from "../../src/recovery"
 import type { JobRecord } from "../../src/state"
 import type { BeadsBackend } from "../../src/beads/types"
@@ -60,7 +63,7 @@ const makeTracker = (alive: boolean): ProcessTracker => ({
 
 describe("production recovery reconciler", () => {
   test("clean worktree with no commits in RETRY_WAIT retries", async () => {
-    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), makeWorktree(null), makeTracker(false))
+    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), new SqliteStateStore(join(tmpdir(), `kilo-rec-${Date.now()}.db`)), makeWorktree(null), makeTracker(false))
     const job = makeJob("test:1", "RETRY_WAIT")
     const results = await reconciler.reconcile([job])
     expect(results[0].action).toBe("retry")
@@ -68,7 +71,7 @@ describe("production recovery reconciler", () => {
 
   test("dirty worktree enters recovery", async () => {
     const worktree: WorktreeInfo = { path: "/wt/test", branch: "factory/test/1", status: "dirty", uniqueCommitCount: 0, headSha: "abc" }
-    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), makeWorktree(worktree), makeTracker(true))
+    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), new SqliteStateStore(join(tmpdir(), `kilo-rec-${Date.now()}.db`)), makeWorktree(worktree), makeTracker(true))
     const job = makeJob("test:1", "RESULT_READY")
     const results = await reconciler.reconcile([job])
     expect(results[0].action).toBe("recover")
@@ -76,14 +79,14 @@ describe("production recovery reconciler", () => {
 
   test("valid unique commits ready for integration", async () => {
     const worktree: WorktreeInfo = { path: "/wt/test", branch: "factory/test/1", status: "clean", uniqueCommitCount: 2, headSha: "abc" }
-    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), makeWorktree(worktree), makeTracker(true))
+    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), new SqliteStateStore(join(tmpdir(), `kilo-rec-${Date.now()}.db`)), makeWorktree(worktree), makeTracker(true))
     const job = makeJob("test:1", "RESULT_READY")
     const results = await reconciler.reconcile([job])
     expect(results[0].action).toBe("integrate")
   })
 
   test("missing worktree retries within budget", async () => {
-    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), makeWorktree(null), makeTracker(false))
+    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), new SqliteStateStore(join(tmpdir(), `kilo-rec-${Date.now()}.db`)), makeWorktree(null), makeTracker(false))
     const job = makeJob("test:1", "LEASED")
     const results = await reconciler.reconcile([job])
     expect(results[0].action).toBe("retry")
@@ -91,7 +94,7 @@ describe("production recovery reconciler", () => {
 
   test("session died while running quarantines", async () => {
     const worktree: WorktreeInfo = { path: "/wt/test", branch: "factory/test/1", status: "clean", uniqueCommitCount: 0, headSha: "abc" }
-    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), makeWorktree(worktree), makeTracker(false))
+    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), new SqliteStateStore(join(tmpdir(), `kilo-rec-${Date.now()}.db`)), makeWorktree(worktree), makeTracker(false))
     const job = makeJob("test:1", "RUNNING")
     const results = await reconciler.reconcile([job])
     expect(results[0].action).toBe("quarantine")
@@ -99,7 +102,7 @@ describe("production recovery reconciler", () => {
 
   test("already closed bead is noop", async () => {
     const worktree: WorktreeInfo = { path: "/wt/test", branch: "factory/test/1", status: "clean", uniqueCommitCount: 1, headSha: "abc" }
-    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), makeWorktree(worktree), makeTracker(true))
+    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), new SqliteStateStore(join(tmpdir(), `kilo-rec-${Date.now()}.db`)), makeWorktree(worktree), makeTracker(true))
     const job = makeJob("test:1", "CLOSED")
     const results = await reconciler.reconcile([job])
     expect(results[0].action).toBe("noop")

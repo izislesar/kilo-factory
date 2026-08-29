@@ -76,7 +76,7 @@ export async function cmdStart(ctx: CommandContext): Promise<CommandOutput> {
   const integration = createIntegrationPipeline(config.mainBranch)
   const recovery = createRecoveryReconciler(
     { ready: async () => [], show: async () => null, claim: async () => true, update: async () => true, close: async () => true },
-    kilo, worktree, tracker, config.roles.length,
+    kilo, state, worktree, tracker, config.roles.length,
   )
 
   const roleScheduler = createRoleScheduler()
