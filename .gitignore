@@ -1,6 +1,7 @@
 node_modules/
 dist/
 coverage/
+*.tsbuildinfo
 .DS_Store
 
 # kilo-factory project runtime (when dogfooding this repository)
