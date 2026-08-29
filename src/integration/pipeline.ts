@@ -4,11 +4,15 @@ import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import type { IntegrationResult, IntegrationPipeline } from "./types"
 
-export class RealIntegrationPipeline implements IntegrationPipeline {
+export class ConfiguredIntegrationPipeline implements IntegrationPipeline {
   private mainBranch: string
+  private repoPath: string
+  private remote: string
 
-  constructor(mainBranch = "main") {
+  constructor(mainBranch = "main", repoPath = process.cwd(), remote = "origin") {
     this.mainBranch = mainBranch
+    this.repoPath = resolve(repoPath)
+    this.remote = remote
   }
 
   async integrate(candidateBranch: string, validationCommand: string): Promise<IntegrationResult> {
@@ -21,27 +25,26 @@ export class RealIntegrationPipeline implements IntegrationPipeline {
 
     let integrationDir: string | undefined
     try {
-      const repoRoot = process.cwd()
       integrationDir = await mkdtemp(join(tmpdir(), "kilo-factory-integ-"))
 
-      const cloneResult = spawnSync("git", ["clone", "--branch", this.mainBranch, "--single-branch", repoRoot, integrationDir], {
+      const cloneResult = spawnSync("git", ["clone", "--branch", this.mainBranch, "--single-branch", this.repoPath, integrationDir], {
         encoding: "utf8",
       })
       if (cloneResult.status !== 0) {
         return { ok: false, error: `Clone failed: ${cloneResult.stderr}` }
       }
 
-      const fetchResult = spawnSync("git", ["fetch", "origin", candidateBranch], { cwd: integrationDir, encoding: "utf8" })
+      const fetchResult = spawnSync("git", ["fetch", this.remote, candidateBranch], { cwd: integrationDir, encoding: "utf8" })
       if (fetchResult.status !== 0) {
         return { ok: false, error: `Fetch failed: ${fetchResult.stderr}` }
       }
 
-      const mergeResult = spawnSync("git", ["merge", "--no-ff", `origin/${candidateBranch}`, "-m", `Integrate ${candidateBranch}`], {
+      const mergeResult = spawnSync("git", ["merge", "--no-ff", `${this.remote}/${candidateBranch}`, "-m", `Integrate ${candidateBranch}`], {
         cwd: integrationDir,
         encoding: "utf8",
       })
       if (mergeResult.status !== 0) {
-        const abortResult = spawnSync("git", ["merge", "--abort"], { cwd: integrationDir, encoding: "utf8" })
+        spawnSync("git", ["merge", "--abort"], { cwd: integrationDir, encoding: "utf8" })
         return { ok: false, error: `Merge conflict: ${mergeResult.stderr}` }
       }
 
@@ -55,12 +58,15 @@ export class RealIntegrationPipeline implements IntegrationPipeline {
         return { ok: false, error: `Validation failed: ${validationResult.stderr || validationResult.stdout}` }
       }
 
-      const pushResult = spawnSync("git", ["push", "origin", this.mainBranch], { cwd: integrationDir, encoding: "utf8" })
+      const pushResult = spawnSync("git", ["push", this.remote, this.mainBranch], { cwd: integrationDir, encoding: "utf8" })
       if (pushResult.status !== 0) {
         return { ok: false, error: `Push failed: ${pushResult.stderr}` }
       }
 
-      return { ok: true }
+      const headResult = spawnSync("git", ["rev-parse", "HEAD"], { cwd: integrationDir, encoding: "utf8" })
+      const mainSha = headResult.stdout.trim()
+
+      return { ok: true, mainSha }
     } catch (error) {
       return { ok: false, error: String(error) }
     } finally {
@@ -71,6 +77,6 @@ export class RealIntegrationPipeline implements IntegrationPipeline {
   }
 }
 
-export function createIntegrationPipeline(mainBranch?: string): IntegrationPipeline {
-  return new RealIntegrationPipeline(mainBranch)
+export function createIntegrationPipeline(mainBranch?: string, repoPath?: string): IntegrationPipeline {
+  return new ConfiguredIntegrationPipeline(mainBranch, repoPath)
 }

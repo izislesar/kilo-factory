@@ -1,2 +1,2 @@
-export { RealIntegrationPipeline, createIntegrationPipeline } from "./pipeline"
+export { ConfiguredIntegrationPipeline, createIntegrationPipeline } from "./pipeline"
 export type { IntegrationResult, IntegrationPipeline } from "./types"

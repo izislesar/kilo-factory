@@ -1,6 +1,7 @@
 export type IntegrationResult = {
   ok: boolean
   error?: string
+  mainSha?: string
 }
 
 export type IntegrationPipeline = {
