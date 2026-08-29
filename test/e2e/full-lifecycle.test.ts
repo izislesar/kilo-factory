@@ -90,7 +90,7 @@ describeIfLifecycle("Full lifecycle: Beads -> coordinator -> session -> worktree
     const reconciler = createRecoveryReconciler(
       { ready: async () => [], show: async () => null, claim: async () => true, update: async () => true, close: async () => true },
       { health: async () => true, listSessions: async () => [], getSeedConfiguration: async () => ({ agent: "code", model: { providerID: "kilo", modelID: "kilo-7.5" } }), createJobSession: async () => ({ id: "ses_new", directory: "/wt" }), promptAsync: async () => {}, abort: async () => {}, delete: async () => {}, subscribe: async () => async () => {}, close: async () => {} },
-      { create: async () => ({ path: "/wt", branch: "factory/t/1", status: "clean", uniqueCommitCount: 1, headSha: "a" }), inspect: async () => null, isOwned: () => true, remove: async () => true, listOwned: async () => [] },
+      { create: async () => ({ path: "/wt", branch: "factory/t/1", status: "clean", uniqueCommitCount: 1, headSha: "a" }), inspect: async () => null, isOwned: () => true, remove: async () => true, listOwned: async () => [], branchFor: (jobId: string, gen: number) => `factory/${jobId}/${gen}` },
       { registerServer: () => {}, registerSession: () => {}, isOwned: () => true, ownedProcesses: () => [], unregister: () => {} },
     )
 

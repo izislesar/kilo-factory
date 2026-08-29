@@ -89,7 +89,7 @@ export async function cmdStart(ctx: CommandContext): Promise<CommandOutput> {
   const coordinator = createCoordinator({
     beads: { ready: async () => [], show: async () => null, claim: async () => true, update: async () => true, close: async () => true },
     kilo, state, worktree, repoPath: ctx.configDir, worktreeRoot: ctx.worktreeRoot,
-    config, roles: roleScheduler, verifier, roleSeeds, seedSessionID: process.env.KILO_SEED_SESSION_ID,
+    config, roles: roleScheduler, verifier, integration, roleSeeds, seedSessionID: process.env.KILO_SEED_SESSION_ID,
   })
 
   let running = true

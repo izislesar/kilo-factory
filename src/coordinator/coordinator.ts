@@ -7,6 +7,7 @@ import type { WorktreeManager } from "../worktree/types"
 import { createContextBuilder, type JobEnvelope } from "../context/builder"
 import { createVerifier } from "../artifacts/verifier"
 import type { Verifier } from "../artifacts/verifier"
+import type { IntegrationPipeline } from "../integration/types"
 import type { ProjectConfig } from "../config/types"
 import type { CompletionPayload } from "../plugin/types"
 import type { RoleScheduler } from "../roles/scheduler"
@@ -21,6 +22,7 @@ export type CoordinatorOptions = {
   config: ProjectConfig
   roles: RoleScheduler
   verifier: Verifier
+  integration: IntegrationPipeline
   maxAttempts?: number
   seedSessionID?: string
   roleSeeds?: Map<string, { sessionID: string; model: SeedConfiguration["model"] }>
@@ -41,6 +43,7 @@ export class Coordinator {
   private config: ProjectConfig
   private roles: RoleScheduler
   private verifier: Verifier
+  private integration: IntegrationPipeline
   private maxAttempts: number
   private seedSessionID?: string
   private roleSeeds?: Map<string, { sessionID: string; model: SeedConfiguration["model"] }>
@@ -58,6 +61,7 @@ export class Coordinator {
     this.config = options.config
     this.roles = options.roles
     this.verifier = options.verifier
+    this.integration = options.integration
     this.maxAttempts = options.maxAttempts ?? 3
     this.seedSessionID = options.seedSessionID
     this.roleSeeds = options.roleSeeds
@@ -234,8 +238,6 @@ export class Coordinator {
       await this.state.updateJob(job.jobId, { state: "REVIEWING" }, { expectedGeneration: job.generation })
 
       const worktreeInfo = await this.worktree.inspect(job.worktree)
-      const currentGeneration = job.generation
-
       const completion: CompletionPayload = {
         jobId: job.jobId,
         generation: job.generation,
@@ -247,16 +249,31 @@ export class Coordinator {
         dirty: worktreeInfo?.status === "dirty",
       }
 
-      const verification = await this.verifier.verify(job, completion, worktreeInfo, currentGeneration)
+      const verification = await this.verifier.verify(job, completion, worktreeInfo, job.generation)
       if (!verification.ok) {
         await this.quarantine(job, `Verification failed: ${verification.errors.join("; ")}`)
         return
       }
 
       await this.state.updateJob(job.jobId, { state: "INTEGRATING" }, { expectedGeneration: job.generation })
+
+      const branchName = this.worktree.branchFor(job.bead, job.generation)
+      const validationCommand = this.config.validation?.command ?? "echo ok"
+      const integrationResult = await this.integration.integrate(branchName, validationCommand)
+
+      if (!integrationResult.ok) {
+        await this.quarantine(job, `Integration failed: ${integrationResult.error}`)
+        return
+      }
+
       await this.state.updateJob(job.jobId, { state: "VALIDATING" }, { expectedGeneration: job.generation })
 
-      await this.state.updateJob(job.jobId, { state: "COMMITTED" }, { expectedGeneration: job.generation })
+      if (!integrationResult.mainSha) {
+        await this.quarantine(job, "Integration succeeded but no main SHA recorded")
+        return
+      }
+
+      await this.state.updateJob(job.jobId, { state: "COMMITTED", headSha: integrationResult.mainSha }, { expectedGeneration: job.generation })
       await this.beads.close(job.bead, `Completed generation ${job.generation}`)
       await this.state.updateJob(job.jobId, { state: "CLOSED" }, { expectedGeneration: job.generation })
 

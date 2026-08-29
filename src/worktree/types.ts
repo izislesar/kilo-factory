@@ -11,7 +11,8 @@ export type WorktreeInfo = {
 export type WorktreeManager = {
   create(baseSha: string, jobId: string, generation: number): Promise<WorktreeInfo>
   inspect(path: string): Promise<WorktreeInfo | null>
-  isOwned(path: string): boolean
+  isOwned(branch: string): boolean
   remove(path: string): Promise<boolean>
   listOwned(): Promise<WorktreeInfo[]>
+  branchFor(jobId: string, generation: number): string
 }

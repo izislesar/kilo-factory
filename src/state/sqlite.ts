@@ -28,6 +28,8 @@ export type JobRecord = {
   failureReason?: string
   createdAt: string
   updatedAt: string
+  headSha?: string
+  mainSha?: string
 }
 
 export type NewJob = Omit<JobRecord, "attempts" | "createdAt" | "updatedAt"> & {

@@ -5,6 +5,7 @@ import type { KiloAdapter, SeedConfiguration } from "../../src/kilo/types"
 import { SqliteStateStore } from "../../src/state/sqlite"
 import { createRoleScheduler } from "../../src/roles/scheduler"
 import { createVerifier } from "../../src/artifacts/verifier"
+import { createIntegrationPipeline } from "../../src/integration/pipeline"
 import type { WorktreeManager, WorktreeInfo } from "../../src/worktree/types"
 import type { ProjectConfig } from "../../src/config/types"
 import { mkdtemp, rm } from "node:fs/promises"
@@ -68,6 +69,7 @@ function makeWorktree(overrides: Partial<WorktreeManager> = {}): WorktreeManager
     isOwned: () => true,
     remove: async () => true,
     listOwned: async () => [info],
+    branchFor: (jobId: string, gen: number) => `factory/${jobId}/${gen}`,
     ...overrides,
   }
 }
@@ -99,6 +101,7 @@ describe("Coordinator", () => {
       config: { version: 1, mainBranch: "main", roles: [{ name: "core" }] },
       roles: createRoleScheduler(),
       verifier: createVerifier("/wt"),
+      integration: createIntegrationPipeline("main"),
     })
 
     process.env.KILO_SEED_SESSION_ID = "ses_seed"
@@ -131,6 +134,7 @@ describe("Coordinator", () => {
       config: { version: 1, mainBranch: "main", roles: [{ name: "core" }] },
       roles: createRoleScheduler(),
       verifier: createVerifier("/wt"),
+      integration: createIntegrationPipeline("main"),
     })
 
     process.env.KILO_SEED_SESSION_ID = "ses_seed"
@@ -160,6 +164,7 @@ describe("Coordinator", () => {
       config: { version: 1, mainBranch: "main", roles: [{ name: "core" }] },
       roles: createRoleScheduler(),
       verifier: createVerifier("/wt"),
+      integration: createIntegrationPipeline("main"),
       maxAttempts: 2,
     })
 

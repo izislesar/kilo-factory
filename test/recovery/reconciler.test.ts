@@ -47,6 +47,7 @@ const makeWorktree = (info: WorktreeInfo | null): WorktreeManager => ({
   isOwned: () => true,
   remove: async () => true,
   listOwned: async () => info ? [info] : [],
+  branchFor: (jobId: string, gen: number) => `factory/${jobId}/${gen}`,
 })
 
 const makeTracker = (alive: boolean): ProcessTracker => ({
