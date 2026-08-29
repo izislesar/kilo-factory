@@ -8,10 +8,19 @@ const seedSessionID = process.env.KILO_MULTICYCLE_SEED_SESSION_ID
 const factoryBin = process.env.FACTORY_BIN ?? join(import.meta.dir, "..", "..", "dist", "cli.js")
 
 let fixtureDir: string
+let fixtureRepo: string
 
 beforeAll(async () => {
-  fixtureDir = join(tmpdir(), "kilo-factory-multicycle")
-  await mkdir(fixtureDir, { recursive: true })
+  fixtureDir = join(tmpdir(), "kilo-factory-multicycle-" + Date.now())
+  fixtureRepo = join(fixtureDir, "repo")
+  await mkdir(fixtureRepo, { recursive: true })
+
+  spawnSync("git", ["init", "--initial-branch=main"], { cwd: fixtureRepo })
+  await writeFile(join(fixtureRepo, "README.md"), "# Multi-cycle fixture\n")
+  spawnSync("git", ["add", "README.md"], { cwd: fixtureRepo })
+  spawnSync("git", ["-c", "user.name=Test", "-c", "user.email=test@invalid", "commit", "-m", "init"], { cwd: fixtureRepo })
+
+  spawnSync("bd", ["init", "--skip-agents"], { cwd: fixtureRepo })
 })
 
 afterAll(async () => {
@@ -20,38 +29,30 @@ afterAll(async () => {
 
 const describeIfMulti = seedSessionID ? describe : describe.skip
 
-describeIfMulti("multi-cycle: unattended factory acceptance", () => {
-  test("fixture repository initialized", async () => {
-    const gitDir = join(fixtureDir, "repo")
-    await mkdir(gitDir, { recursive: true })
-    spawnSync("git", ["init", "--initial-branch=main"], { cwd: gitDir })
-    await writeFile(join(gitDir, "README.md"), "# Multi-cycle fixture\n")
-    spawnSync("git", ["add", "README.md"], { cwd: gitDir })
-    spawnSync("git", ["-c", "user.name=Test", "-c", "user.email=test@invalid", "commit", "-m", "init"], { cwd: gitDir })
-
-    const readme = await readFile(join(gitDir, "README.md"), "utf8")
-    expect(readme).toContain("Multi-cycle fixture")
+describeIfMulti("multi-cycle: unattended multi-role scheduling", () => {
+  test("fixture repository initialized with Beads", () => {
+    const result = spawnSync("bd", ["list", "--status=open"], { cwd: fixtureRepo, encoding: "utf8" })
+    expect(result.status).toBe(0)
   })
 
-  test("factory init creates multi-role config", async () => {
-    const config = {
-      version: 1,
-      mainBranch: "main",
-      roles: [
-        { name: "role-a", instructions: "First role" },
-        { name: "role-b", instructions: "Second role" },
-      ],
-    }
-    const configPath = join(fixtureDir, "repo", ".kilo-factory")
-    await mkdir(configPath, { recursive: true })
-    await writeFile(join(configPath, "config.json"), JSON.stringify(config, null, 2))
+  test("factory init creates multi-role config", () => {
+    const result = spawnSync("bun", [factoryBin, "init", fixtureRepo], { encoding: "utf8" })
+    expect(result.status).toBe(0)
 
-    const saved = JSON.parse(await readFile(join(configPath, "config.json"), "utf8"))
-    expect(saved.roles.length).toBe(2)
+    const configPath = join(fixtureRepo, ".kilo-factory", "config.json")
+    const config = JSON.parse(require("fs").readFileSync(configPath, "utf8"))
+    expect(config.roles.length).toBeGreaterThanOrEqual(1)
   })
 
-  test("factory binary functional", () => {
+  test("factory status shows configured roles", () => {
+    const result = spawnSync("bun", [factoryBin, "status"], { cwd: fixtureRepo, encoding: "utf8" })
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain("Roles:")
+  })
+
+  test("factory CLI produces valid output", () => {
     const result = spawnSync("bun", [factoryBin, "--version"], { encoding: "utf8" })
     expect(result.status).toBe(0)
+    expect(result.stdout).toContain("0.1.0")
   })
 })
