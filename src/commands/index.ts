@@ -5,6 +5,11 @@ import { SqliteStateStore } from "../state/sqlite"
 import { createKiloAdapter } from "../kilo/RestKiloAdapter"
 import { createWorktreeManager } from "../worktree/manager"
 import { createEventLogger } from "../observability/logger"
+import { createCoordinator } from "../coordinator/coordinator"
+import { createVerifier } from "../artifacts/verifier"
+import { createIntegrationPipeline } from "../integration/pipeline"
+import { createRecoveryReconciler } from "../recovery/reconciler"
+import { createProcessTracker, createServerLifecycle } from "../security/index"
 
 export type CommandContext = {
   configDir: string
@@ -50,21 +55,50 @@ export async function cmdStart(ctx: CommandContext): Promise<CommandOutput> {
   }
   lines.push(`Config loaded: ${config.roles.length} role(s), mainBranch=${config.mainBranch}`)
 
-  const adapter = createKiloAdapter({ url: ctx.kiloUrl, directory: ctx.configDir })
-  const healthy = await adapter.health()
-  await adapter.close()
+  const kilo = createKiloAdapter({ url: ctx.kiloUrl, directory: ctx.configDir })
+  const healthy = await kilo.health()
   if (!healthy) {
+    await kilo.close()
     return { ok: false, exitCode: 1, lines, errors: [`Kilo server at ${ctx.kiloUrl} is not reachable`] }
   }
   lines.push(`Kilo server reachable at ${ctx.kiloUrl}`)
 
   const state = new SqliteStateStore(ctx.statePath)
   await state.init()
-  await state.close()
   lines.push(`State store ready at ${ctx.statePath}`)
 
-  lines.push("Factory started (dry-run mode - no coordinator loop)")
-  return { ok: true, exitCode: 0, lines, errors: [] }
+  const worktree = createWorktreeManager(ctx.configDir, ctx.worktreeRoot, config.mainBranch)
+  const tracker = createProcessTracker(join(ctx.configDir, ".kilo-factory", "ownership.json"))
+  const lifecycle = createServerLifecycle()
+  const events = createEventLogger(join(ctx.configDir, ".kilo-factory", "events.log"))
+  const verifier = createVerifier(ctx.worktreeRoot, config.validation?.command)
+  const integration = createIntegrationPipeline(config.mainBranch)
+  const recovery = createRecoveryReconciler(
+    { ready: async () => [], show: async () => null, claim: async () => true, update: async () => true, close: async () => true },
+    kilo, worktree, tracker, config.roles.length,
+  )
+
+  const coordinator = createCoordinator({
+    beads: { ready: async () => [], show: async () => null, claim: async () => true, update: async () => true, close: async () => true },
+    kilo, state, worktree, repoPath: ctx.configDir, worktreeRoot: ctx.worktreeRoot,
+    config, seedSessionID: process.env.KILO_SEED_SESSION_ID,
+  })
+
+  await events.log({ level: "info", type: "factory.started", message: "Factory starting" })
+
+  try {
+    await coordinator.reconcile()
+    await events.log({ level: "info", type: "factory.reconciled", message: "Reconcile complete" })
+    lines.push("Factory reconcile complete")
+  } catch (error) {
+    errors.push(`Reconcile error: ${String(error)}`)
+  }
+
+  await coordinator.shutdown()
+  await state.close()
+  await kilo.close()
+
+  return { ok: errors.length === 0, exitCode: errors.length > 0 ? 1 : 0, lines, errors }
 }
 
 export async function cmdStatus(ctx: CommandContext): Promise<CommandOutput> {
