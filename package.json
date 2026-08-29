@@ -23,13 +23,15 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "docs/OPERATIONS.md"
   ],
   "engines": {
     "bun": ">=1.2.0",
     "opencode": ">=7.5.6 <8"
   },
   "scripts": {
+    "prepublishOnly": "bun run build",
     "build": "bun scripts/build.ts && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
     "test": "bun run build && bun test",
