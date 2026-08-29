@@ -3,6 +3,8 @@ export type ProcessOwnership = {
   type: "server" | "session"
   sessionId?: string
   directory?: string
+  startedAt?: string
+  runID?: string
 }
 
 export type ShutdownResult = {
