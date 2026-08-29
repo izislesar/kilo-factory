@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "project": "kilo-factory",
   "epic": {
     "id": "kilo-factory-000",
@@ -512,6 +512,242 @@
         "Factory restart reconciles correctly.",
         "factory stop leaves zero factory-owned coordinator/server/job processes.",
         "Release notes state any remaining experimental Kilo dependency."
+      ]
+    },
+    {
+      "id": "kilo-factory-024",
+      "title": "[PROD] Audit release gaps and reconcile Beads accounting",
+      "type": "task",
+      "priority": 0,
+      "labels": [
+        "production",
+        "audit",
+        "beads"
+      ],
+      "deps": [],
+      "description": "Re-anchor the project after the core implementation wave. Reconcile the reported closed-bead count against actual Beads state, determine the exact status and remaining scope of kilo-factory-018, inspect every open/blocked/in-progress release task, and identify concrete production gaps without duplicating already-covered work.",
+      "acceptance": [
+        "The previous closed-bead count discrepancy is explained from actual Beads state.",
+        "The status and remaining scope of kilo-factory-018 is explicitly established.",
+        "Every open/blocked/in-progress bead is classified as actionable, externally blocked, obsolete, or duplicate.",
+        "Missing production work discovered by the audit is represented by discovered-from Beads rather than hidden markdown TODOs.",
+        "The resulting DAG has no accidental orphaned production work and bd ready/bd blocked are coherent."
+      ]
+    },
+    {
+      "id": "kilo-factory-025",
+      "title": "[E2E] Prove real installed-plugin lifecycle with disposable fixture",
+      "type": "task",
+      "priority": 0,
+      "labels": [
+        "production",
+        "e2e",
+        "kilo"
+      ],
+      "deps": [
+        "kilo-factory-018",
+        "kilo-factory-020",
+        "kilo-factory-024"
+      ],
+      "description": "Create and exercise a disposable Git/Beads project through the actually installed kilo-factory plugin and real Kilo runtime. This is the production acceptance path, not a mocked unit/integration substitute.",
+      "acceptance": [
+        "A clean disposable fixture can be created reproducibly with dependent and independent Beads requiring multiple roles.",
+        "Kilo discovers the installed plugin through the documented production installation path.",
+        "The full path Beads -> coordinator -> exact job context -> role/job session -> isolated worktree -> implementation -> structured result -> independent verification -> isolated integration -> green main -> dependency release completes.",
+        "No mock replaces Kilo, Git, Beads, sessions, worktrees, completion verification, or integration on the final acceptance path.",
+        "At least one dependency fan-out/fan-in sequence completes automatically and final state is observable through normal status/event surfaces."
+      ]
+    },
+    {
+      "id": "kilo-factory-026",
+      "title": "[RECOVERY] Run adversarial real-runtime crash and stale-state acceptance",
+      "type": "task",
+      "priority": 0,
+      "labels": [
+        "production",
+        "recovery",
+        "fault-injection"
+      ],
+      "deps": [
+        "kilo-factory-025"
+      ],
+      "description": "Use the real installed-plugin fixture to attack recovery boundaries that unit tests cannot fully prove: coordinator death, worker/session death, Kilo restart, stale generation results, dirty/abandoned worktrees, interrupted verification/integration, and duplicate events.",
+      "acceptance": [
+        "Coordinator termination during active work reconciles deterministically after restart.",
+        "Worker/session death cannot silently complete or permanently wedge a job.",
+        "Stale or superseded generation/session completion is rejected on the real path.",
+        "Dirty or abandoned factory worktrees are preserved/reconciled safely without destructive reset.",
+        "Interrupted verification/integration cannot leave main partially promoted or non-green.",
+        "Recovery remains bounded and observable; no scenario produces an unbounded redispatch loop."
+      ]
+    },
+    {
+      "id": "kilo-factory-027",
+      "title": "[STATE] Audit SQLite durability migrations and semantic idempotency",
+      "type": "task",
+      "priority": 1,
+      "labels": [
+        "production",
+        "state",
+        "sqlite"
+      ],
+      "deps": [
+        "kilo-factory-025"
+      ],
+      "description": "Audit durable orchestration truth under restart, retry, partial writes, schema initialization and migration. Verify that semantic effects are idempotent and that state cannot falsely authorize integration or completion.",
+      "acceptance": [
+        "Fresh state initializes deterministically and existing supported schemas migrate safely.",
+        "Critical state transitions have appropriate transaction/uniqueness boundaries.",
+        "Retry after interrupted operations cannot double-complete, double-integrate, or duplicate ownership.",
+        "Corrupt or incompatible state fails closed with actionable diagnostics.",
+        "Crash/restart tests cover the highest-risk persistence boundaries discovered by the audit."
+      ]
+    },
+    {
+      "id": "kilo-factory-028",
+      "title": "[SECURITY] Audit destructive boundaries ownership and repository containment",
+      "type": "task",
+      "priority": 1,
+      "labels": [
+        "production",
+        "security",
+        "git"
+      ],
+      "deps": [
+        "kilo-factory-016",
+        "kilo-factory-025"
+      ],
+      "description": "Audit every operation that can mutate or delete local state: process/session termination, worktree cleanup, path handling, shell/process invocation, result authority, candidate promotion and repository boundaries. Prioritize prevention of accidental destruction outside factory-owned scope.",
+      "acceptance": [
+        "Destructive cleanup requires positive factory ownership and validated repository/worktree paths.",
+        "PID reuse, stale ownership records, foreign Kilo processes and unrelated user worktrees cannot be mistaken for factory-owned resources.",
+        "Stale/foreign completion authority cannot promote code or mutate current job truth.",
+        "Command/process invocation avoids avoidable injection and path-confusion hazards.",
+        "Security-relevant defects discovered by the audit gain focused regression coverage."
+      ]
+    },
+    {
+      "id": "kilo-factory-029",
+      "title": "[SOAK] Prove concurrent multi-role stability and bounded resource use",
+      "type": "task",
+      "priority": 1,
+      "labels": [
+        "production",
+        "soak",
+        "concurrency"
+      ],
+      "deps": [
+        "kilo-factory-026",
+        "kilo-factory-027"
+      ],
+      "description": "Run repeated real jobs and recovery cycles with concurrent roles. Inspect child processes, sessions, worktrees, SQLite/event state, file descriptors and logs for leaks or unbounded accumulation.",
+      "acceptance": [
+        "At least two roles execute concurrently for repeated cycles without cross-job contamination or ownership races.",
+        "Repeated cycles do not accumulate orphan factory-owned processes or sessions.",
+        "Worktree/runtime-state cleanup follows an explicit safe policy and does not grow without bound accidentally.",
+        "Event/log/state growth has a deliberate maintainable policy rather than an accidental infinite append path.",
+        "The factory remains functional after the soak sequence and main remains green."
+      ]
+    },
+    {
+      "id": "kilo-factory-030",
+      "title": "[FRESH] Prove clean-clone clean-install production acceptance",
+      "type": "task",
+      "priority": 0,
+      "labels": [
+        "production",
+        "release",
+        "installation"
+      ],
+      "deps": [
+        "kilo-factory-020",
+        "kilo-factory-022",
+        "kilo-factory-025",
+        "kilo-factory-026",
+        "kilo-factory-027",
+        "kilo-factory-028",
+        "kilo-factory-029"
+      ],
+      "description": "Validate the release candidate from a fresh clone/install with no inherited node_modules, build output, SQLite state, old worktrees, Kilo job sessions, or developer-specific local configuration.",
+      "acceptance": [
+        "Documented install/build/init commands succeed from a clean clone.",
+        "The installed plugin is discovered by real Kilo without undeclared developer-machine assumptions.",
+        "A disposable real-runtime lifecycle completes from the clean environment.",
+        "Restart/reconciliation still succeeds in the clean environment.",
+        "No secret, absolute developer path, stale runtime artifact, or hidden prerequisite is required."
+      ]
+    },
+    {
+      "id": "kilo-factory-031",
+      "title": "[SELFHOST] Dogfood kilo-factory on its own remaining Beads",
+      "type": "task",
+      "priority": 0,
+      "labels": [
+        "production",
+        "self-host",
+        "dogfood"
+      ],
+      "deps": [
+        "kilo-factory-025",
+        "kilo-factory-026",
+        "kilo-factory-027",
+        "kilo-factory-028"
+      ],
+      "description": "Use kilo-factory itself to execute suitable remaining kilo-factory work through the normal production path. Self-hosting must not receive bypasses for context, verification, ownership or integration.",
+      "acceptance": [
+        "At least one meaningful remaining kilo-factory bead is executed by the factory itself when the environment permits.",
+        "Self-hosted work uses normal job sessions, generation fencing, worktrees, structured completion, verification and green-main integration.",
+        "No special self-host-only trust bypass is introduced.",
+        "Any defect exposed by self-hosting is tracked as a discovered-from bead and fixed or explicitly blocked with evidence."
+      ]
+    },
+    {
+      "id": "kilo-factory-032",
+      "title": "[RELEASE] Pass final production-readiness gate",
+      "type": "task",
+      "priority": 0,
+      "labels": [
+        "production",
+        "release",
+        "gate"
+      ],
+      "deps": [
+        "kilo-factory-023",
+        "kilo-factory-030",
+        "kilo-factory-031"
+      ],
+      "description": "Authoritative ship/no-ship gate. Do not close from child status alone and do not treat a green unit suite as production evidence. Re-run the complete release evidence on the final candidate.",
+      "acceptance": [
+        "All achievable production beads are closed; any remainder is a genuine external blocker with precise evidence and safe owner steps.",
+        "Unit/integration/regression tests, typecheck, lint where configured, and production build pass on the final candidate.",
+        "Real installed-plugin E2E, adversarial recovery, multi-role soak and clean-install acceptance pass.",
+        "Self-hosting acceptance passes where the environment permits it.",
+        "Main is green and git status is clean with no uncommitted production work.",
+        "No unresolved P0/P1 production defect remains except a documented external blocker.",
+        "Exact commands and results used for the gate are recorded in Beads/comments or release evidence."
+      ]
+    },
+    {
+      "id": "kilo-factory-033",
+      "title": "[REPORT] Write final night-shift production report",
+      "type": "task",
+      "priority": 1,
+      "labels": [
+        "production",
+        "report",
+        "release"
+      ],
+      "deps": [
+        "kilo-factory-032"
+      ],
+      "description": "Write NIGHT_SHIFT_REPORT.md after the production gate has actually run. The report is evidence for the owner, not a substitute for completing the gate.",
+      "acceptance": [
+        "Report lists implemented production work and defects discovered/fixed.",
+        "Report summarizes meaningful architecture changes and remaining limitations.",
+        "Report records real E2E, failure/recovery, soak, clean-install and self-hosting results.",
+        "Report includes exact final test/typecheck/lint/build results and final Beads state.",
+        "Report lists any genuine external blockers with evidence.",
+        "Report gives exact commands the owner can run to independently verify the release."
       ]
     }
   ]

@@ -45,6 +45,7 @@ def main() -> None:
 
     required_docs = [
         "AGENTS.md",
+        "docs/PRODUCTION_READINESS.md",
         "docs/PRODUCT.md",
         "docs/ARCHITECTURE.md",
         "docs/CONTEXT_ENGINEERING.md",
