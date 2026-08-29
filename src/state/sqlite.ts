@@ -184,6 +184,15 @@ export class SqliteStateStore {
   }
 
   async listJobsByBead(beadId: string): Promise<JobRecord[]> {
+    if (beadId === "__all__") {
+      const rows = this.db
+        .query<Record<string, unknown>, []>(
+          `SELECT job_id, bead, generation, role, base_sha, worktree, state, session_id, attempts, failure_reason, created_at, updated_at
+           FROM jobs ORDER BY updated_at DESC`,
+        )
+        .all()
+      return rows.map(fromRow)
+    }
     const rows = this.db
       .query<Record<string, unknown>, [string]>(
         `SELECT job_id, bead, generation, role, base_sha, worktree, state, session_id, attempts, failure_reason, created_at, updated_at
