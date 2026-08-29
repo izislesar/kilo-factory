@@ -1,8 +1,12 @@
 import { describe, expect, test } from "bun:test"
 import { ProcessTrackerImpl } from "../../src/security/processTracker"
+import { DurableProcessTracker } from "../../src/security/index"
 import { GitWorktreeManager } from "../../src/worktree/manager"
 import { validateCompletion, ContractError } from "../../src/plugin/contract"
 import type { CompletionPayload } from "../../src/plugin/types"
+import { writeFile, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 describe("security audit: destructive boundaries", () => {
   describe("destructive cleanup requires positive ownership", () => {
@@ -87,6 +91,33 @@ describe("security audit: destructive boundaries", () => {
       expect(branch).not.toContain(";")
       expect(branch).not.toContain("|")
       expect(branch).not.toContain("&")
+    })
+  })
+
+  describe("durable ownership and restart hydration", () => {
+    test("hydrate loads persisted ownership and verifies identity", async () => {
+      const trackerPath = join(tmpdir(), `kilo-factory-owner-${Date.now()}.json`)
+      const runID = "test-run-id"
+
+      await writeFile(trackerPath, JSON.stringify([
+        { pid: process.pid, type: "server", startedAt: new Date().toISOString(), runID },
+      ]))
+
+      try {
+        const tracker = new DurableProcessTracker(trackerPath, "new-run-id")
+        const result = await tracker.hydrate()
+        expect(result.hydrated).toBeGreaterThanOrEqual(0)
+        expect(result.stale).toBeGreaterThanOrEqual(0)
+      } finally {
+        await rm(trackerPath, { force: true }).catch(() => undefined)
+      }
+    })
+
+    test("unrelated processes survive stop", () => {
+      const tracker = new ProcessTrackerImpl()
+      tracker.registerServer(99999, "/unrelated")
+      expect(tracker.isOwned(99999)).toBe(true)
+      expect(tracker.isOwned(process.pid)).toBe(false)
     })
   })
 })

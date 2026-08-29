@@ -23,6 +23,28 @@ export class DurableProcessTracker implements ProcessTracker {
     this.runID = runID
   }
 
+  async hydrate(): Promise<{ hydrated: number; stale: number }> {
+    const stored = await this.load()
+    let hydrated = 0
+    let stale = 0
+    for (const record of stored) {
+      if (this.isProcessAlive(record.pid) && this.isOwnedProcess(record.pid)) {
+        this.cache.set(record.pid, {
+          pid: record.pid,
+          type: record.type,
+          sessionId: record.sessionId,
+          directory: record.directory,
+          startedAt: record.startedAt,
+          runID: record.runID,
+        })
+        hydrated++
+      } else {
+        stale++
+      }
+    }
+    return { hydrated, stale }
+  }
+
   private async load(): Promise<StoredOwnership[]> {
     try {
       const data = readFileSync(this.statePath, "utf8")
