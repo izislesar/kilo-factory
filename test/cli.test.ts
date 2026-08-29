@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { runCliAsync } from "../src/cli"
+import { mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 function capture() {
   const stdout: string[] = []
@@ -37,8 +40,13 @@ describe("factory CLI", () => {
   })
 
   test("init command is recognized", async () => {
-    const output = capture()
-    const exitCode = await runCliAsync(["init"], output.io)
-    expect(exitCode).toBe(0)
+    const dir = await mkdtemp(join(tmpdir(), "kilo-cli-test-"))
+    try {
+      const output = capture()
+      const exitCode = await runCliAsync(["init", dir], output.io)
+      expect(exitCode).toBe(0)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 })
