@@ -20,7 +20,7 @@ afterAll(async () => {
 
 const describeIfSelfHost = seedSessionID ? describe : describe.skip
 
-describeIfSelfHost("self-host: dogfood kilo-factory on its own work", () => {
+describeIfSelfHost("true self-host: dogfood kilo-factory on its own work", () => {
   test("fixture directory created", async () => {
     await writeFile(join(fixtureDir, "README.md"), "# Self-host fixture\n")
     const content = await readFile(join(fixtureDir, "README.md"), "utf8")
@@ -40,5 +40,15 @@ describeIfSelfHost("self-host: dogfood kilo-factory on its own work", () => {
     const configPath = join(fixtureDir, ".kilo-factory", "config.json")
     const config = JSON.parse(require("fs").readFileSync(configPath, "utf8"))
     expect(config.version).toBe(1)
+  })
+
+  test("factory doctor passes", () => {
+    const result = spawnSync("bun", [factoryBin, "doctor"], {
+      cwd: fixtureDir,
+      encoding: "utf8",
+      env: { ...process.env, KILO_BASE_URL: "http://127.0.0.1:37273" },
+      timeout: 30_000,
+    })
+    expect(result.status).toBe(0)
   })
 })
