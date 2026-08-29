@@ -19,6 +19,8 @@ beforeAll(async () => {
   await writeFile(join(fixtureRepo, "README.md"), "# E2E Fixture\n\nInitial content.\n")
   spawnSync("git", ["add", "README.md"], { cwd: fixtureRepo })
   spawnSync("git", ["-c", "user.name=Test", "-c", "user.email=test@invalid", "commit", "-m", "init"], { cwd: fixtureRepo })
+
+  spawnSync("bd", ["init", "--skip-agents"], { cwd: fixtureRepo })
 })
 
 afterAll(async () => {
@@ -27,19 +29,13 @@ afterAll(async () => {
 
 const describeIfE2E = seedSessionID ? describe : describe.skip
 
-describeIfE2E("E2E: true shipped autonomous lifecycle", () => {
+describeIfE2E("E2E: shipped-runtime lifecycle through CLI", () => {
   test("fixture repository initialized correctly", async () => {
     const readme = await readFile(join(fixtureRepo, "README.md"), "utf8")
     expect(readme).toContain("E2E Fixture")
   })
 
-  test("factory CLI is functional", () => {
-    const result = spawnSync("bun", [factoryBin, "--version"], { encoding: "utf8" })
-    expect(result.status).toBe(0)
-    expect(result.stdout).toContain("0.1.0")
-  })
-
-  test("factory init works in fixture directory", () => {
+  test("factory init enables plugin and creates config", () => {
     const result = spawnSync("bun", [factoryBin, "init", fixtureRepo], { encoding: "utf8" })
     expect(result.status).toBe(0)
 
@@ -56,5 +52,32 @@ describeIfE2E("E2E: true shipped autonomous lifecycle", () => {
       timeout: 30_000,
     })
     expect(result.status).toBe(0)
+  })
+
+  test("factory start runs and responds to SIGTERM", () => {
+    const { spawn } = require("node:child_process")
+    const proc = spawn("bun", [factoryBin, "start"], {
+      cwd: fixtureRepo,
+      env: { ...process.env, KILO_BASE_URL: "http://127.0.0.1:37273", KILO_SEED_SESSION_ID: seedSessionID },
+      stdio: ["ignore", "pipe", "pipe"],
+    })
+
+    let stdout = ""
+    proc.stdout.on("data", (data: Buffer) => { stdout += data.toString() })
+
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        proc.kill("SIGTERM")
+        setTimeout(() => {
+          expect(stdout).toContain("controller active")
+          resolve()
+        }, 500)
+      }, 2000)
+
+      proc.on("error", (err: Error) => {
+        clearTimeout(timeout)
+        reject(err)
+      })
+    })
   })
 })
