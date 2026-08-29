@@ -1,2 +1,2 @@
-export { ArtifactVerifierImpl, createArtifactVerifier } from "./verifier"
-export type { ArtifactVerifier, VerificationResult } from "./verifier"
+export { IndependentVerifier, createVerifier } from "./verifier"
+export type { Verifier, VerificationResult } from "./verifier"
