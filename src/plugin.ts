@@ -46,7 +46,9 @@ const factoryCompleteTool = tool({
     summary: z.string(),
     checks: z.array(z.string()).default([]),
     risks: z.array(z.string()).default([]),
+    baseSha: z.string(),
     headSha: z.string(),
+    dirty: z.boolean().default(false),
   },
   execute: async (args, context): Promise<ToolResult> => {
     const expected = parseJobFromBranch(context.worktree)
@@ -68,7 +70,9 @@ const factoryCompleteTool = tool({
         summary: args.summary,
         checks: args.checks,
         risks: args.risks,
+        baseSha: args.baseSha,
         headSha: args.headSha,
+        dirty: args.dirty,
       }),
     }
   },

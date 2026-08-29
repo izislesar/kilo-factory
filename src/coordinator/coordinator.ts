@@ -186,9 +186,22 @@ export class Coordinator {
     }
   }
 
-  private async handleJobEvent(job: JobRecord, event: { type: string; error?: unknown }): Promise<void> {
+  private async handleJobEvent(job: JobRecord, event: { type: string; error?: unknown; payload?: { properties?: { text?: string } } }): Promise<void> {
     if (event.type === "session.error" && event.error) {
       await this.quarantine(job, `Session error: ${String(event.error)}`)
+      return
+    }
+    if (event.type === "message.completed" && event.payload?.properties?.text) {
+      try {
+        const completion = JSON.parse(event.payload.properties.text)
+        if (completion.ok && completion.jobId && completion.generation) {
+          if (completion.jobId === job.jobId && completion.generation === job.generation) {
+            await this.state.updateJob(job.jobId, { state: "RESULT_READY" }, { expectedGeneration: job.generation })
+          }
+        }
+      } catch {
+        // Not a valid completion payload - ignore
+      }
     }
   }
 
