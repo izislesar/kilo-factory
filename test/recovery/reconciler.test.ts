@@ -1,77 +1,106 @@
 import { describe, expect, test } from "bun:test"
-import { determineAction, ReconcilerImpl } from "../../src/recovery/reconciler"
-import type { JobObservation } from "../../src/recovery/types"
+import { ProductionRecoveryReconciler, createRecoveryReconciler } from "../../src/recovery/reconciler"
+import type { JobObservation } from "../../src/recovery"
+import type { JobRecord } from "../../src/state"
+import type { BeadsBackend } from "../../src/beads/types"
+import type { KiloAdapter } from "../../src/kilo/types"
+import type { WorktreeManager, WorktreeInfo } from "../../src/worktree/types"
+import type { ProcessTracker } from "../../src/security/types"
 
-describe("crash recovery reconciler", () => {
-  test("clean worktree with no commits can retry", () => {
-    const observation: JobObservation = {
-      jobId: "test:1",
-      generation: 1,
-      worktreeExists: true,
-      worktreeStatus: "clean",
-      uniqueCommits: 0,
-      beadStatus: "in_progress",
-    }
-    expect(determineAction(observation)).toBe("retry")
+const makeJob = (id: string, state: string): JobRecord => ({
+  jobId: id,
+  bead: id.split(":")[0],
+  generation: 1,
+  role: "core",
+  baseSha: "base",
+  worktree: `/wt/${id}`,
+  state: state as JobRecord["state"],
+  sessionID: "ses_123",
+  attempts: 0,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+})
+
+const makeBackend = (): BeadsBackend => ({
+  ready: async () => [],
+  show: async () => null,
+  claim: async () => true,
+  update: async () => true,
+  close: async () => true,
+})
+
+const makeKilo = (): KiloAdapter => ({
+  health: async () => true,
+  listSessions: async () => [],
+  getSeedConfiguration: async () => ({ agent: "code", model: { providerID: "kilo", modelID: "kilo-7.5" } }),
+  createJobSession: async () => ({ id: "ses_new", directory: "/wt" }),
+  promptAsync: async () => {},
+  abort: async () => {},
+  delete: async () => {},
+  subscribe: async () => async () => {},
+  close: async () => {},
+})
+
+const makeWorktree = (info: WorktreeInfo | null): WorktreeManager => ({
+  create: async () => ({ path: "/wt/test", branch: "factory/test/1", status: "clean", uniqueCommitCount: 0, headSha: "abc" }),
+  inspect: async () => info,
+  isOwned: () => true,
+  remove: async () => true,
+  listOwned: async () => info ? [info] : [],
+})
+
+const makeTracker = (alive: boolean): ProcessTracker => ({
+  registerServer: () => {},
+  registerSession: () => {},
+  isOwned: () => alive,
+  ownedProcesses: () => [],
+  unregister: () => {},
+})
+
+describe("production recovery reconciler", () => {
+  test("clean worktree with no commits in RETRY_WAIT retries", async () => {
+    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), makeWorktree(null), makeTracker(false))
+    const job = makeJob("test:1", "RETRY_WAIT")
+    const results = await reconciler.reconcile([job])
+    expect(results[0].action).toBe("retry")
   })
 
-  test("dirty worktree enters bounded recovery", () => {
-    const observation: JobObservation = {
-      jobId: "test:1",
-      generation: 1,
-      worktreeExists: true,
-      worktreeStatus: "dirty",
-      uniqueCommits: 0,
-      beadStatus: "in_progress",
-    }
-    expect(determineAction(observation)).toBe("recover")
+  test("dirty worktree enters recovery", async () => {
+    const worktree: WorktreeInfo = { path: "/wt/test", branch: "factory/test/1", status: "dirty", uniqueCommitCount: 0, headSha: "abc" }
+    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), makeWorktree(worktree), makeTracker(true))
+    const job = makeJob("test:1", "RESULT_READY")
+    const results = await reconciler.reconcile([job])
+    expect(results[0].action).toBe("recover")
   })
 
-  test("clean unique commit is recovered as candidate", () => {
-    const observation: JobObservation = {
-      jobId: "test:1",
-      generation: 1,
-      worktreeExists: true,
-      worktreeStatus: "clean",
-      uniqueCommits: 2,
-      beadStatus: "in_progress",
-    }
-    expect(determineAction(observation)).toBe("noop")
+  test("valid unique commits ready for integration", async () => {
+    const worktree: WorktreeInfo = { path: "/wt/test", branch: "factory/test/1", status: "clean", uniqueCommitCount: 2, headSha: "abc" }
+    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), makeWorktree(worktree), makeTracker(true))
+    const job = makeJob("test:1", "RESULT_READY")
+    const results = await reconciler.reconcile([job])
+    expect(results[0].action).toBe("integrate")
   })
 
-  test("missing worktree with in-progress bead is quarantined", () => {
-    const observation: JobObservation = {
-      jobId: "test:1",
-      generation: 1,
-      worktreeExists: false,
-      worktreeStatus: "missing",
-      uniqueCommits: 0,
-      beadStatus: "in_progress",
-    }
-    expect(determineAction(observation)).toBe("quarantine")
+  test("missing worktree retries within budget", async () => {
+    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), makeWorktree(null), makeTracker(false))
+    const job = makeJob("test:1", "LEASED")
+    const results = await reconciler.reconcile([job])
+    expect(results[0].action).toBe("retry")
   })
 
-  test("already closed bead needs no action", () => {
-    const observation: JobObservation = {
-      jobId: "test:1",
-      generation: 1,
-      worktreeExists: true,
-      worktreeStatus: "clean",
-      uniqueCommits: 1,
-      beadStatus: "closed",
-    }
-    expect(determineAction(observation)).toBe("noop")
+  test("session died while running quarantines", async () => {
+    const worktree: WorktreeInfo = { path: "/wt/test", branch: "factory/test/1", status: "clean", uniqueCommitCount: 0, headSha: "abc" }
+    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), makeWorktree(worktree), makeTracker(false))
+    const job = makeJob("test:1", "RUNNING")
+    const results = await reconciler.reconcile([job])
+    expect(results[0].action).toBe("quarantine")
   })
 
-  test("reconciler processes multiple observations", async () => {
-    const reconciler = new ReconcilerImpl()
-    const observations: JobObservation[] = [
-      { jobId: "a:1", generation: 1, worktreeExists: true, worktreeStatus: "clean", uniqueCommits: 0, beadStatus: "in_progress" },
-      { jobId: "b:1", generation: 1, worktreeExists: true, worktreeStatus: "dirty", uniqueCommits: 0, beadStatus: "in_progress" },
-    ]
-
-    const actions = await reconciler.reconcile(observations)
-
-    expect(actions).toEqual(["retry", "recover"])
+  test("already closed bead is noop", async () => {
+    const worktree: WorktreeInfo = { path: "/wt/test", branch: "factory/test/1", status: "clean", uniqueCommitCount: 1, headSha: "abc" }
+    const reconciler = createRecoveryReconciler(makeBackend(), makeKilo(), makeWorktree(worktree), makeTracker(true))
+    const job = makeJob("test:1", "CLOSED")
+    const results = await reconciler.reconcile([job])
+    expect(results[0].action).toBe("noop")
   })
 })
