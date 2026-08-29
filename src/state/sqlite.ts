@@ -140,6 +140,16 @@ export class SqliteStateStore {
     return row ? fromRow(row) : null
   }
 
+  async listJobsByBead(beadId: string): Promise<JobRecord[]> {
+    const rows = this.db
+      .query<Record<string, unknown>, [string]>(
+        `SELECT job_id, bead, generation, role, base_sha, worktree, state, session_id, attempts, failure_reason, created_at, updated_at
+         FROM jobs WHERE bead = ? ORDER BY generation DESC`,
+      )
+      .all(beadId)
+    return rows.map(fromRow)
+  }
+
   async close(): Promise<void> {
     this.db.close()
   }
